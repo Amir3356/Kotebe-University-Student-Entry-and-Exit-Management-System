@@ -1,0 +1,258 @@
+[
+  {
+    "id": "r-1",
+    "code": "EXR-2026-0001",
+    "studentId": "u-stu-3",
+    "reason": "Family visit for the Meskel holiday",
+    "destination": "Adama",
+    "departureDate": "2026-10-10",
+    "returnDate": "2026-10-15",
+    "items": [
+      {
+        "id": "ri-1",
+        "belongingId": "b-4",
+        "category": "Desktop Computer",
+        "description": "Dell OptiPlex 3080 tower with 22\" monitor",
+        "serialNumber": "DL3080-77421",
+        "quantity": 1
+      },
+      {
+        "id": "ri-2",
+        "belongingId": null,
+        "category": "Clothing",
+        "description": "Shirts and trousers",
+        "serialNumber": "",
+        "quantity": 4
+      }
+    ],
+    "status": "completed",
+    "createdAt": "2026-10-08T16:20:00.000Z",
+    "reviewedBy": "u-proctor-1",
+    "reviewedAt": "2026-10-09T11:05:00.000Z",
+    "reviewNote": "Approved. Return by the stated date.",
+    "verifiedBy": "u-guard-1",
+    "exitedAt": "2026-10-10T05:40:00.000Z"
+  },
+  {
+    "id": "r-2",
+    "code": "EXR-2026-0002",
+    "studentId": "u-stu-7",
+    "reason": "Laptop needs repair at the Dell service centre",
+    "destination": "Bole, Addis Ababa",
+    "departureDate": "2026-10-07",
+    "returnDate": "2026-10-14",
+    "items": [
+      {
+        "id": "ri-3",
+        "belongingId": "b-11",
+        "category": "Laptop",
+        "description": "Dell Latitude 5420",
+        "serialNumber": "9XKQ2J3",
+        "quantity": 1
+      }
+    ],
+    "status": "completed",
+    "createdAt": "2026-10-06T17:00:00.000Z",
+    "reviewedBy": "u-proctor-1",
+    "reviewedAt": "2026-10-06T18:15:00.000Z",
+    "reviewNote": "",
+    "verifiedBy": "u-guard-2",
+    "exitedAt": "2026-10-07T06:10:00.000Z"
+  },
+  {
+    "id": "r-3",
+    "code": "EXR-2026-0003",
+    "studentId": "u-stu-1",
+    "reason": "Visiting family over the weekend",
+    "destination": "Debre Birhan",
+    "departureDate": "2026-10-12",
+    "returnDate": "2026-10-16",
+    "items": [
+      {
+        "id": "ri-4",
+        "belongingId": "b-1",
+        "category": "Laptop",
+        "description": "Lenovo ThinkPad E14",
+        "serialNumber": "PF3K9X21",
+        "quantity": 1
+      },
+      {
+        "id": "ri-5",
+        "belongingId": null,
+        "category": "Clothing",
+        "description": "2 shirts and 1 jacket",
+        "serialNumber": "",
+        "quantity": 3
+      },
+      {
+        "id": "ri-6",
+        "belongingId": null,
+        "category": "Bag",
+        "description": "Black backpack",
+        "serialNumber": "",
+        "quantity": 1
+      }
+    ],
+    "status": "approved",
+    "createdAt": "2026-10-11T12:30:00.000Z",
+    "reviewedBy": "u-proctor-1",
+    "reviewedAt": "2026-10-11T13:10:00.000Z",
+    "reviewNote": "Approved. Show this pass at the main gate.",
+    "verifiedBy": null,
+    "exitedAt": null
+  },
+  {
+    "id": "r-4",
+    "code": "EXR-2026-0004",
+    "studentId": "u-stu-2",
+    "reason": "Medical appointment at Tikur Anbessa Hospital",
+    "destination": "Lideta, Addis Ababa",
+    "departureDate": "2026-10-13",
+    "returnDate": "2026-10-13",
+    "items": [
+      {
+        "id": "ri-7",
+        "belongingId": "b-3",
+        "category": "Laptop",
+        "description": "HP Pavilion 15",
+        "serialNumber": "5CD2341KQ9",
+        "quantity": 1
+      }
+    ],
+    "status": "pending",
+    "createdAt": "2026-10-12T05:05:00.000Z",
+    "reviewedBy": null,
+    "reviewedAt": null,
+    "reviewNote": "",
+    "verifiedBy": null,
+    "exitedAt": null
+  },
+  {
+    "id": "r-5",
+    "code": "EXR-2026-0005",
+    "studentId": "u-stu-5",
+    "reason": "Taking speaker to a repair shop",
+    "destination": "Piassa, Addis Ababa",
+    "departureDate": "2026-10-12",
+    "returnDate": "2026-10-12",
+    "items": [
+      {
+        "id": "ri-8",
+        "belongingId": "b-8",
+        "category": "Electronics",
+        "description": "JBL Flip 6 Bluetooth speaker",
+        "serialNumber": "TL0124-55821",
+        "quantity": 1
+      }
+    ],
+    "status": "pending",
+    "createdAt": "2026-10-12T04:20:00.000Z",
+    "reviewedBy": null,
+    "reviewedAt": null,
+    "reviewNote": "",
+    "verifiedBy": null,
+    "exitedAt": null
+  },
+  {
+    "id": "r-6",
+    "code": "EXR-2026-0006",
+    "studentId": "u-stu-4",
+    "reason": "Leaving tablet at a relative's house",
+    "destination": "Kotebe, Addis Ababa",
+    "departureDate": "2026-10-09",
+    "returnDate": "2026-10-09",
+    "items": [
+      {
+        "id": "ri-9",
+        "belongingId": null,
+        "category": "Tablet",
+        "description": "Samsung tablet",
+        "serialNumber": "R9TT1099XZ",
+        "quantity": 1
+      }
+    ],
+    "status": "rejected",
+    "createdAt": "2026-10-08T07:00:00.000Z",
+    "reviewedBy": "u-proctor-2",
+    "reviewedAt": "2026-10-08T08:30:00.000Z",
+    "reviewNote": "The serial number does not match your entry record. Please visit the proctor office.",
+    "verifiedBy": null,
+    "exitedAt": null
+  },
+  {
+    "id": "r-7",
+    "code": "EXR-2026-0007",
+    "studentId": "u-stu-6",
+    "reason": "Going home before the mid-semester break",
+    "destination": "Hawassa",
+    "departureDate": "2026-10-14",
+    "returnDate": "2026-10-21",
+    "items": [
+      {
+        "id": "ri-10",
+        "belongingId": "b-9",
+        "category": "Laptop",
+        "description": "Asus VivoBook 15",
+        "serialNumber": "M7N0CV18A221",
+        "quantity": 1
+      },
+      {
+        "id": "ri-11",
+        "belongingId": null,
+        "category": "Clothing",
+        "description": "Traditional dress and casual outfits",
+        "serialNumber": "",
+        "quantity": 5
+      },
+      {
+        "id": "ri-12",
+        "belongingId": null,
+        "category": "Books",
+        "description": "Accounting textbooks",
+        "serialNumber": "",
+        "quantity": 3
+      }
+    ],
+    "status": "pending",
+    "createdAt": "2026-10-11T18:40:00.000Z",
+    "reviewedBy": null,
+    "reviewedAt": null,
+    "reviewNote": "",
+    "verifiedBy": null,
+    "exitedAt": null
+  },
+  {
+    "id": "r-8",
+    "code": "EXR-2026-0008",
+    "studentId": "u-stu-4",
+    "reason": "Church holiday with family",
+    "destination": "Bishoftu",
+    "departureDate": "2026-10-12",
+    "returnDate": "2026-10-14",
+    "items": [
+      {
+        "id": "ri-13",
+        "belongingId": null,
+        "category": "Clothing",
+        "description": "Holiday clothes",
+        "serialNumber": "",
+        "quantity": 2
+      },
+      {
+        "id": "ri-14",
+        "belongingId": null,
+        "category": "Bag",
+        "description": "Brown travel bag",
+        "serialNumber": "",
+        "quantity": 1
+      }
+    ],
+    "status": "approved",
+    "createdAt": "2026-10-10T09:00:00.000Z",
+    "reviewedBy": "u-proctor-2",
+    "reviewedAt": "2026-10-11T06:45:00.000Z",
+    "reviewNote": "",
+    "verifiedBy": null,
+    "exitedAt": null
+  }
+]
