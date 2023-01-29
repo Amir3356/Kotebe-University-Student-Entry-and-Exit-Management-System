@@ -16,11 +16,18 @@ export default function AllBelongings() {
     const s = userOf(b.studentId)
     return (category === 'all' || b.category === category) && matches(query, b.description, b.serialNumber, b.brand, s?.name, s?.studentId)
   })
-  const visible = status === 'all' ? searched : searched.filter((b) => b.status === status)
+  const visible =
+    status === 'all'
+      ? searched
+      : searched.filter((b) =>
+          status === 'active'
+            ? b.status === 'active' || b.status === 'on_campus'
+            : b.status === 'inactive' || b.status === 'off_campus',
+        )
   const tabs = [
     { value: 'all', label: 'All', count: searched.length },
-    { value: 'on_campus', label: 'On campus', count: searched.filter((b) => b.status === 'on_campus').length },
-    { value: 'off_campus', label: 'Off campus', count: searched.filter((b) => b.status === 'off_campus').length },
+    { value: 'active', label: 'Active', count: searched.filter((b) => b.status === 'active' || b.status === 'on_campus').length },
+    { value: 'inactive', label: 'Inactive', count: searched.filter((b) => b.status === 'inactive' || b.status === 'off_campus').length },
   ]
 
   return (

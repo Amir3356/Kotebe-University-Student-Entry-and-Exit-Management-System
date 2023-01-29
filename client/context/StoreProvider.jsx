@@ -29,7 +29,14 @@ function loadData() {
   const raw = readStorage(DATA_KEY)
   if (raw) {
     try {
-      return JSON.parse(raw)
+      const parsed = JSON.parse(raw)
+      if (parsed && Array.isArray(parsed.belongings)) {
+        parsed.belongings = parsed.belongings.map((b) => ({
+          ...b,
+          status: b.status === 'off_campus' || b.status === 'inactive' ? 'inactive' : 'active',
+        }))
+      }
+      return parsed
     } catch {
       // fall through to fresh mock data
     }
@@ -104,7 +111,7 @@ export function StoreProvider({ children }) {
           brand: item.brand || '',
           serialNumber: item.serialNumber || '',
           color: item.color || '',
-          status: 'on_campus',
+          status: 'active',
           registeredBy: currentUser.id,
           registeredAt: timestamp,
         }))
@@ -123,7 +130,7 @@ export function StoreProvider({ children }) {
         setData((prev) => ({
           ...prev,
           belongings: [
-            ...prev.belongings.map((b) => (returningIds.includes(b.id) ? { ...b, status: 'on_campus' } : b)),
+            ...prev.belongings.map((b) => (returningIds.includes(b.id) ? { ...b, status: 'active' } : b)),
             ...created,
           ],
           gateLogs: [log, ...prev.gateLogs],
@@ -200,7 +207,7 @@ export function StoreProvider({ children }) {
           exitRequests: prev.exitRequests.map((r) =>
             r.id === requestId ? { ...r, status: 'completed', verifiedBy: currentUser.id, exitedAt: timestamp } : r,
           ),
-          belongings: prev.belongings.map((b) => (leavingIds.includes(b.id) ? { ...b, status: 'off_campus' } : b)),
+          belongings: prev.belongings.map((b) => (leavingIds.includes(b.id) ? { ...b, status: 'inactive' } : b)),
           gateLogs: [log, ...prev.gateLogs],
         }))
         notify(`Exit allowed for ${request.code}.`)
@@ -256,6 +263,23 @@ export function StoreProvider({ children }) {
       deleteUser(userId) {
         setData((prev) => ({ ...prev, users: prev.users.filter((u) => u.id !== userId) }))
         notify('Account deleted.', 'info')
+      },
+
+      deleteBelonging(belongingId) {
+        setData((prev) => ({ ...prev, belongings: prev.belongings.filter((b) => b.id !== belongingId) }))
+        notify('Belonging record removed.', 'info')
+      },
+
+      toggleBelongingStatus(belongingId) {
+        const item = data.belongings.find((b) => b.id === belongingId)
+        if (!item) return
+        const isCurrentActive = item.status === 'active' || item.status === 'on_campus'
+        const nextStatus = isCurrentActive ? 'inactive' : 'active'
+        setData((prev) => ({
+          ...prev,
+          belongings: prev.belongings.map((b) => (b.id === belongingId ? { ...b, status: nextStatus } : b)),
+        }))
+        notify(`${item.description || item.category} set to ${nextStatus}.`, 'info')
       },
 
       resetDemoData() {

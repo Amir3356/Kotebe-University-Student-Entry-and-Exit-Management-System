@@ -18,7 +18,7 @@ export default function GuardDashboard() {
       />
 
       <div className="action-tiles">
-        <Link to="/guard/entry" className="action-tile tile-entry">
+        <Link to="/guard/belongings" className="action-tile tile-entry">
           <Icon name="entry" size={28} />
           <div>
             <div className="action-tile-title">Record entry</div>

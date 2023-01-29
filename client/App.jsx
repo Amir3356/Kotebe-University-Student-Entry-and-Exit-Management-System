@@ -37,15 +37,17 @@ export default function App() {
           <Route path="/login" element={<Login />} />
 
           <Route path="/student" element={<RequireRole role="student" />}>
-            <Route index element={<StudentDashboard />} />
+            <Route index element={<Navigate to="belongings" replace />} />
             <Route path="belongings" element={<MyBelongings />} />
+            <Route path="dashboard" element={<StudentDashboard />} />
             <Route path="requests" element={<MyRequests />} />
             <Route path="requests/new" element={<NewRequest />} />
           </Route>
 
           <Route path="/guard" element={<RequireRole role="guard" />}>
-            <Route index element={<GuardDashboard />} />
-            <Route path="entry" element={<RecordEntry />} />
+            <Route index element={<Navigate to="belongings" replace />} />
+            <Route path="belongings" element={<RecordEntry />} />
+            <Route path="dashboard" element={<GuardDashboard />} />
             <Route path="exit" element={<VerifyExit />} />
             <Route path="logs" element={<GateRecords title="Gate Log" />} />
           </Route>

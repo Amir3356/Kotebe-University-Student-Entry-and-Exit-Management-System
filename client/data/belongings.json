@@ -7,7 +7,7 @@
     "brand": "Lenovo",
     "serialNumber": "PF3K9X21",
     "color": "Black",
-    "status": "on_campus",
+    "status": "active",
     "registeredBy": "u-guard-1",
     "registeredAt": "2026-09-02T05:15:00.000Z"
   },
@@ -19,7 +19,7 @@
     "brand": "Samsung",
     "serialNumber": "R58T20LMQ8",
     "color": "Graphite",
-    "status": "on_campus",
+    "status": "active",
     "registeredBy": "u-guard-1",
     "registeredAt": "2026-09-02T05:15:00.000Z"
   },
@@ -31,7 +31,7 @@
     "brand": "HP",
     "serialNumber": "5CD2341KQ9",
     "color": "Silver",
-    "status": "on_campus",
+    "status": "active",
     "registeredBy": "u-guard-2",
     "registeredAt": "2026-09-04T06:02:00.000Z"
   },
@@ -43,7 +43,7 @@
     "brand": "Dell",
     "serialNumber": "DL3080-77421",
     "color": "Black",
-    "status": "off_campus",
+    "status": "inactive",
     "registeredBy": "u-guard-1",
     "registeredAt": "2026-08-28T07:30:00.000Z"
   },
@@ -55,7 +55,7 @@
     "brand": "Apple",
     "serialNumber": "C02H71XYQ6L4",
     "color": "Space Grey",
-    "status": "on_campus",
+    "status": "active",
     "registeredBy": "u-guard-1",
     "registeredAt": "2026-08-28T07:30:00.000Z"
   },
@@ -67,7 +67,7 @@
     "brand": "Samsung",
     "serialNumber": "R9TT1043AB",
     "color": "Dark Grey",
-    "status": "on_campus",
+    "status": "active",
     "registeredBy": "u-guard-2",
     "registeredAt": "2026-09-09T11:45:00.000Z"
   },
@@ -79,7 +79,7 @@
     "brand": "Acer",
     "serialNumber": "NXA1BAA00312",
     "color": "Silver",
-    "status": "on_campus",
+    "status": "active",
     "registeredBy": "u-guard-1",
     "registeredAt": "2026-09-06T04:55:00.000Z"
   },
@@ -91,7 +91,7 @@
     "brand": "JBL",
     "serialNumber": "TL0124-55821",
     "color": "Blue",
-    "status": "on_campus",
+    "status": "active",
     "registeredBy": "u-guard-1",
     "registeredAt": "2026-09-06T04:55:00.000Z"
   },
@@ -103,7 +103,7 @@
     "brand": "Asus",
     "serialNumber": "M7N0CV18A221",
     "color": "Indie Black",
-    "status": "on_campus",
+    "status": "active",
     "registeredBy": "u-guard-1",
     "registeredAt": "2026-10-12T04:50:00.000Z"
   },
@@ -115,7 +115,7 @@
     "brand": "HP",
     "serialNumber": "8CG1093ZPL",
     "color": "Black",
-    "status": "on_campus",
+    "status": "active",
     "registeredBy": "u-guard-2",
     "registeredAt": "2026-08-23T08:10:00.000Z"
   },
@@ -127,7 +127,7 @@
     "brand": "Dell",
     "serialNumber": "9XKQ2J3",
     "color": "Black",
-    "status": "off_campus",
+    "status": "inactive",
     "registeredBy": "u-guard-2",
     "registeredAt": "2026-08-23T08:10:00.000Z"
   },
@@ -139,7 +139,7 @@
     "brand": "Apple",
     "serialNumber": "F2LDK9AXN73M",
     "color": "White",
-    "status": "on_campus",
+    "status": "active",
     "registeredBy": "u-guard-1",
     "registeredAt": "2026-10-11T15:05:00.000Z"
   }

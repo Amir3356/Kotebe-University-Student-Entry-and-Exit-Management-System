@@ -26,7 +26,7 @@ export default function StudentDashboard() {
 
       <div className="stats-grid">
         <StatCard label="Registered belongings" value={mine.length} icon="box" tone="primary" />
-        <StatCard label="Items on campus" value={mine.filter((b) => b.status === 'on_campus').length} icon="shield" tone="success" />
+        <StatCard label="Active items" value={mine.filter((b) => b.status === 'active' || b.status === 'on_campus').length} icon="shield" tone="success" />
         <StatCard label="Pending requests" value={requests.filter((r) => r.status === 'pending').length} icon="clock" tone="warning" />
         <StatCard label="Approved passes" value={requests.filter((r) => r.status === 'approved').length} icon="ticket" tone="info" />
       </div>

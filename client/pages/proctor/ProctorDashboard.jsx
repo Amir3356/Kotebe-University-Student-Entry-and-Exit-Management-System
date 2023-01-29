@@ -27,7 +27,7 @@ export default function ProctorDashboard() {
         <StatCard label="Waiting for review" value={pending.length} icon="clock" tone="warning" />
         <StatCard label="Reviewed today" value={reviewedToday.length} icon="clipboard" tone="primary" />
         <StatCard label="Approved, not yet exited" value={exitRequests.filter((r) => r.status === 'approved').length} icon="ticket" tone="success" />
-        <StatCard label="Items currently off campus" value={belongings.filter((b) => b.status === 'off_campus').length} icon="exit" tone="info" />
+        <StatCard label="Inactive items" value={belongings.filter((b) => b.status === 'inactive' || b.status === 'off_campus').length} icon="exit" tone="info" />
       </div>
 
       <div className="grid-2">

@@ -8,12 +8,8 @@ export { users, belongings, exitRequests, gateLogs }
 export const ITEM_CATEGORIES = [
   'Laptop',
   'Desktop Computer',
-  'Mobile Phone',
   'Tablet',
   'Electronics',
-  'Clothing',
-  'Bag',
-  'Books',
   'Other',
 ]
 

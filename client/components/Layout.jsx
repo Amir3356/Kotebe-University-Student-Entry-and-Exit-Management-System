@@ -10,17 +10,11 @@ function navFor(role, counts) {
   switch (role) {
     case 'student':
       return [
-        { to: '/student', label: 'Dashboard', icon: 'dashboard', end: true },
         { to: '/student/belongings', label: 'My Belongings', icon: 'box' },
-        { to: '/student/requests/new', label: 'New Exit Request', icon: 'send' },
-        { to: '/student/requests', label: 'My Requests', icon: 'list', end: true },
       ]
     case 'guard':
       return [
-        { to: '/guard', label: 'Dashboard', icon: 'dashboard', end: true },
-        { to: '/guard/entry', label: 'Record Entry', icon: 'entry' },
-        { to: '/guard/exit', label: 'Verify Exit', icon: 'exit', badge: counts.approved },
-        { to: '/guard/logs', label: 'Gate Log', icon: 'clock' },
+        { to: '/guard/belongings', label: 'Student Belongings', icon: 'box' },
       ]
     case 'proctor':
       return [
@@ -103,7 +97,6 @@ export default function Layout() {
           <button type="button" className="icon-btn menu-btn" onClick={() => setMenuOpen(true)} aria-label="Open menu">
             <Icon name="menu" />
           </button>
-          <div className="topbar-title">Kotebe University of Education · Entry &amp; Exit</div>
         </header>
         <main className="content">
           <Outlet />

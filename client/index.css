@@ -271,10 +271,10 @@ code {
   font-weight: 500;
   font-size: 0.92rem;
   color: #c8d4e4;
-  transition: background 0.15s, color 0.15s;
 }
-.nav-link:hover { background: rgba(255, 255, 255, 0.06); color: #fff; }
+.nav-link:hover { background: transparent; }
 .nav-link.active { background: rgba(230, 179, 74, 0.14); color: #fff; box-shadow: inset 3px 0 0 var(--gold); }
+.nav-link.active:hover { background: rgba(230, 179, 74, 0.14); }
 .nav-link.active .icon { color: var(--gold); }
 .nav-badge {
   margin-left: auto;
@@ -307,10 +307,10 @@ code {
 .main { flex: 1; min-width: 0; margin-left: var(--sidebar-w); display: flex; flex-direction: column; }
 
 .topbar {
+  display: none;
   position: sticky;
   top: 0;
   z-index: 20;
-  display: flex;
   align-items: center;
   gap: 12px;
   height: 58px;
@@ -511,12 +511,25 @@ tbody tr:last-child td { border-bottom: none; }
 .users-table .row-title { font-size: 0.95rem; font-weight: 600; }
 .users-table code { font-size: 0.88rem; color: var(--navy-700); background: var(--surface-2); padding: 2px 7px; border-radius: 6px; }
 
+/* Guard → Student Belongings */
+.belongings-table { width: 100%; min-width: 900px; }
+.belongings-table td { white-space: nowrap; }
+.card-header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+.detail-name { margin: 0; font-size: 1.05rem; font-weight: 700; }
+
 /* ---------- Toolbar, tabs, search ---------- */
 .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .toolbar-right { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .toolbar select { height: 38px; padding: 0 10px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--surface); }
-.users-toolbar .search { flex: 1; max-width: 420px; }
-.users-toolbar select { min-width: 150px; cursor: pointer; }
+.filter-toolbar .search { flex: 1; max-width: 420px; }
+.filter-toolbar select { min-width: 150px; cursor: pointer; }
 .results-count { margin: -10px 0 -8px; }
 
 .tabs { display: inline-flex; gap: 4px; padding: 4px; background: var(--neutral-soft); border-radius: 10px; flex-wrap: wrap; }
@@ -826,7 +839,7 @@ tbody tr:last-child td { border-bottom: none; }
   .menu-open .scrim { display: block; position: fixed; inset: 0; z-index: 30; background: rgba(12, 35, 64, 0.4); }
   .main { margin-left: 0; }
   .menu-btn { display: inline-grid; }
-  .topbar { padding: 0 16px; }
+  .topbar { display: flex; padding: 0 16px; }
   .content { padding: 20px 16px 40px; }
   .grid-2, .action-tiles { grid-template-columns: minmax(0, 1fr); }
   .login { grid-template-columns: minmax(0, 1fr); }

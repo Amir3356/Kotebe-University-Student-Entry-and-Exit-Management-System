@@ -13,7 +13,6 @@ const EMPTY = {
   email: '',
   phone: '',
   studentId: '',
-  department: '',
   year: 1,
   dorm: '',
   gate: '',
@@ -44,7 +43,7 @@ export default function ManageUsers() {
     const base = { id: form.id, role: form.role, name: form.name, username: form.username, password: form.password, email: form.email, phone: form.phone }
     const extra =
       form.role === 'student'
-        ? { studentId: form.studentId.trim().toUpperCase(), department: form.department, year: form.year ? Number(form.year) : 1, dorm: form.dorm || '' }
+        ? { studentId: (form.studentId || '').trim().toUpperCase(), ...(form.department ? { department: form.department } : {}), year: form.year ? Number(form.year) : 1, dorm: form.dorm || '' }
         : form.role === 'guard'
           ? { gate: form.gate }
           : form.role === 'proctor'
@@ -108,20 +107,9 @@ export default function ManageUsers() {
                         <Icon name="edit" size={16} />
                       </button>
                       {u.id !== currentUser.id && (
-                        <>
-                          <button
-                            type="button"
-                            className="icon-btn"
-                            onClick={() => actions.toggleUserStatus(u.id)}
-                            aria-label={u.status === 'active' ? 'Deactivate' : 'Activate'}
-                            title={u.status === 'active' ? 'Deactivate' : 'Activate'}
-                          >
-                            <Icon name={u.status === 'active' ? 'ban' : 'check'} size={16} />
-                          </button>
-                          <button type="button" className="icon-btn danger" onClick={() => setDeleting(u)} aria-label={`Delete ${u.name}`} title="Delete">
-                            <Icon name="trash" size={16} />
-                          </button>
-                        </>
+                        <button type="button" className="icon-btn danger" onClick={() => setDeleting(u)} aria-label={`Delete ${u.name}`} title="Delete">
+                          <Icon name="trash" size={16} />
+                        </button>
                       )}
                     </td>
                   </tr>
@@ -161,16 +149,6 @@ export default function ManageUsers() {
             <Field label="Password *">
               <input value={form.password} onChange={set('password')} autoComplete="new-password" />
             </Field>
-
-            {form.role === 'student' && (
-              <Field label="Department">
-                <input
-                  value={form.department}
-                  onChange={set('department')}
-                  placeholder="e.g. Computer Science"
-                />
-              </Field>
-            )}
           </form>
         )}
       </Modal>

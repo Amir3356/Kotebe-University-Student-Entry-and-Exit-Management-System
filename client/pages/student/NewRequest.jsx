@@ -18,7 +18,7 @@ export default function NewRequest() {
   const [extras, setExtras] = useState([])
   const [errors, setErrors] = useState({})
 
-  const mine = belongings.filter((b) => b.studentId === currentUser.id && b.status === 'on_campus')
+  const mine = belongings.filter((b) => b.studentId === currentUser.id && (b.status === 'active' || b.status === 'on_campus'))
   // A belonging already in a pending/approved request can't be requested twice.
   const lockedBy = {}
   exitRequests

@@ -44,7 +44,7 @@ export default function AdminDashboard() {
       <div className="stats-grid stats-grid-6">
         <StatCard label="Active students" value={students.filter((s) => s.status === 'active').length} icon="user" tone="primary" hint={`${students.length} total`} />
         <StatCard label="Staff accounts" value={staff.length} icon="users" tone="neutral" />
-        <StatCard label="Items on campus" value={belongings.filter((b) => b.status === 'on_campus').length} icon="box" tone="success" hint={`${belongings.length} registered`} />
+        <StatCard label="Active items" value={belongings.filter((b) => b.status === 'active' || b.status === 'on_campus').length} icon="box" tone="success" hint={`${belongings.length} registered`} />
         <StatCard label="Pending requests" value={exitRequests.filter((r) => r.status === 'pending').length} icon="clock" tone="warning" />
         <StatCard label="Entries today" value={today.filter((g) => g.type === 'entry').length} icon="entry" tone="success" />
         <StatCard label="Exits today" value={today.filter((g) => g.type === 'exit').length} icon="exit" tone="info" hint={`${today.filter((g) => g.type === 'denied').length} denied`} />
