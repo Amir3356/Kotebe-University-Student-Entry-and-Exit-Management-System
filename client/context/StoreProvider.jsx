@@ -36,6 +36,21 @@ function loadData() {
           status: b.status === 'off_campus' || b.status === 'inactive' ? 'inactive' : 'active',
         }))
       }
+      if (parsed && Array.isArray(parsed.users)) {
+        const freshMap = Object.fromEntries(createMockData().users.map((u) => [u.id, u]))
+        parsed.users = parsed.users.map((u) => {
+          const fresh = freshMap[u.id]
+          return fresh
+            ? {
+                ...u,
+                address: u.address || fresh.address || 'Kotebe, Addis Ababa',
+                subcity: u.subcity || fresh.subcity || 'Yeka',
+                woreda: u.woreda || fresh.woreda || '08',
+                approvalStatus: u.approvalStatus || fresh.approvalStatus || 'approve',
+              }
+            : u
+        })
+      }
       return parsed
     } catch {
       // fall through to fresh mock data

@@ -18,8 +18,7 @@ function navFor(role, counts) {
       ]
     case 'proctor':
       return [
-        { to: '/proctor', label: 'Dashboard', icon: 'dashboard', end: true },
-        { to: '/proctor/requests', label: 'Review Requests', icon: 'clipboard', badge: counts.pending },
+        { to: '/proctor/requests', label: 'Student Leave Request', icon: 'clipboard', badge: counts.pending },
       ]
     case 'admin':
       return [

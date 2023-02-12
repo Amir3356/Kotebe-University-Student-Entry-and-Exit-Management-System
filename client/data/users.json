@@ -68,9 +68,13 @@
     "phone": "+251 920 118 447",
     "studentId": "KU/0458/15",
     "department": "Computer Science",
+    "address": "Kotebe, Addis Ababa",
+    "subcity": "Yeka",
+    "woreda": "08",
     "year": 3,
     "dorm": "Block B, Room 214",
     "status": "active",
+    "approvalStatus": "approve",
     "createdAt": "2026-06-14T06:00:00.000Z"
   },
   {
@@ -83,9 +87,13 @@
     "phone": "+251 921 640 215",
     "studentId": "KU/0612/16",
     "department": "Mathematics Education",
+    "address": "Gerji, Addis Ababa",
+    "subcity": "Bole",
+    "woreda": "03",
     "year": 2,
     "dorm": "Block D, Room 108",
     "status": "active",
+    "approvalStatus": "pending",
     "createdAt": "2026-06-24T06:00:00.000Z"
   },
   {
@@ -98,9 +106,13 @@
     "phone": "+251 922 731 908",
     "studentId": "KU/0233/14",
     "department": "Information Systems",
+    "address": "4 Kilo, Addis Ababa",
+    "subcity": "Arada",
+    "woreda": "05",
     "year": 4,
     "dorm": "Block A, Room 305",
     "status": "active",
+    "approvalStatus": "approve",
     "createdAt": "2026-06-24T06:00:00.000Z"
   },
   {
@@ -113,9 +125,13 @@
     "phone": "+251 923 402 667",
     "studentId": "KU/0789/16",
     "department": "English Language",
+    "address": "Kazanchis, Addis Ababa",
+    "subcity": "Kirkos",
+    "woreda": "02",
     "year": 2,
     "dorm": "Block D, Room 211",
     "status": "active",
+    "approvalStatus": "reject",
     "createdAt": "2026-06-29T06:00:00.000Z"
   },
   {
@@ -128,9 +144,13 @@
     "phone": "+251 924 885 120",
     "studentId": "KU/0341/15",
     "department": "Physics",
+    "address": "Shiro Meda, Addis Ababa",
+    "subcity": "Gullele",
+    "woreda": "07",
     "year": 3,
     "dorm": "Block C, Room 117",
     "status": "active",
+    "approvalStatus": "approve",
     "createdAt": "2026-07-04T06:00:00.000Z"
   },
   {
@@ -143,9 +163,13 @@
     "phone": "+251 925 019 334",
     "studentId": "KU/0905/17",
     "department": "Accounting",
+    "address": "Jemo 1, Addis Ababa",
+    "subcity": "Nifas Silk-Lafto",
+    "woreda": "04",
     "year": 1,
     "dorm": "Block E, Room 019",
     "status": "active",
+    "approvalStatus": "pending",
     "createdAt": "2026-09-12T06:00:00.000Z"
   },
   {
@@ -158,9 +182,13 @@
     "phone": "+251 926 774 581",
     "studentId": "KU/0127/14",
     "department": "Civil Engineering",
+    "address": "Tor Hailoch, Addis Ababa",
+    "subcity": "Kolfe Keranio",
+    "woreda": "09",
     "year": 4,
     "dorm": "Block A, Room 402",
     "status": "active",
+    "approvalStatus": "approve",
     "createdAt": "2026-06-19T06:00:00.000Z"
   },
   {
@@ -173,9 +201,13 @@
     "phone": "+251 927 210 793",
     "studentId": "KU/0566/16",
     "department": "Biology",
+    "address": "Kality, Addis Ababa",
+    "subcity": "Akaky Kaliti",
+    "woreda": "01",
     "year": 2,
     "dorm": "Block E, Room 120",
     "status": "inactive",
+    "approvalStatus": "reject",
     "createdAt": "2026-07-14T06:00:00.000Z"
   }
 ]

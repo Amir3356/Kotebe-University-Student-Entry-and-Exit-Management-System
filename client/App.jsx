@@ -16,6 +16,7 @@ import RecordEntry from './pages/guard/RecordEntry'
 import VerifyExit from './pages/guard/VerifyExit'
 
 import ProctorDashboard from './pages/proctor/ProctorDashboard'
+import StudentLeaveRequests from './pages/proctor/StudentLeaveRequests'
 
 import ManageUsers from './pages/admin/ManageUsers'
 import AllBelongings from './pages/admin/AllBelongings'
@@ -53,8 +54,9 @@ export default function App() {
           </Route>
 
           <Route path="/proctor" element={<RequireRole role="proctor" />}>
-            <Route index element={<ProctorDashboard />} />
-            <Route path="requests" element={<RequestsBrowser canReview />} />
+            <Route index element={<Navigate to="requests" replace />} />
+            <Route path="requests" element={<StudentLeaveRequests />} />
+            <Route path="dashboard" element={<ProctorDashboard />} />
           </Route>
 
           <Route path="/admin" element={<RequireRole role="admin" />}>
