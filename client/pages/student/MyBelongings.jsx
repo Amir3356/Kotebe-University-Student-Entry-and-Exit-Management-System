@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useStore } from '../../context/store'
-import { DEPARTMENTS } from '../../data'
+import { DEPARTMENTS, ITEM_CATEGORIES } from '../../data'
 import Icon from '../../components/Icon'
 import {
   Avatar,
@@ -13,7 +13,7 @@ import {
   SearchInput,
   StatusBadge,
 } from '../../components/ui'
-import { formatDateTime, matches } from '../../utils/format'
+import { formatDateTime, matches, todayISODate, uid } from '../../utils/format'
 
 const STUDENT_STATUS_MAP = {
   'u-stu-1': 'approve',
@@ -37,65 +37,111 @@ function resolveStatus(s, index) {
   return pattern[index % pattern.length]
 }
 
-const blankStudent = {
-  name: '',
-  studentId: '',
-  department: DEPARTMENTS[0] || 'Computer Science',
-  phone: '',
-  address: '',
-  subcity: '',
-  woreda: '',
-  approvalStatus: 'pending',
+// Suggestions for the item name field; the student can still type anything.
+const ITEM_SUGGESTIONS = ['Clothes', 'T-shirt', 'Trousers', 'Shoes', 'Bag', 'Books', 'Laptop', 'Mobile Phone', 'Blanket']
+
+const blankItem = () => ({ key: uid('item'), name: '', quantity: 1 })
+
+const STUDENT_FIELDS = ['name', 'studentId', 'department', 'phone', 'address', 'subcity', 'woreda']
+
+// Pre-fill the student section with the signed-in student's details.
+function studentDetailsOf(user) {
+  return {
+    name: user?.name ?? '',
+    studentId: user?.studentId ?? '',
+    department: user?.department || DEPARTMENTS[0] || 'Computer Science',
+    phone: user?.phone ?? '',
+    address: user?.address ?? '',
+    subcity: user?.subcity ?? '',
+    woreda: user?.woreda ?? '',
+  }
 }
 
 export default function MyBelongings() {
-  const { currentUser, users, actions } = useStore()
+  const { currentUser, users, exitRequests, actions } = useStore()
   const [query, setQuery] = useState('')
   const [addOpen, setAddOpen] = useState(false)
-  const [newStudent, setNewStudent] = useState(blankStudent)
+  const [studentDetails, setStudentDetails] = useState(() => studentDetailsOf(currentUser))
+  const [leaveItems, setLeaveItems] = useState([blankItem()])
+  const [reason, setReason] = useState('')
   const [addError, setAddError] = useState('')
   const [editingStudent, setEditingStudent] = useState(null)
   const [deletingStudent, setDeletingStudent] = useState(null)
 
   const students = users.filter((u) => u.role === 'student')
+  // Item, Quantity and Reason columns come from the student's most recent leave request.
+  const latestRequestOf = (studentId) =>
+    exitRequests
+      .filter((r) => r.studentId === studentId && r.status !== 'cancelled')
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]
+
   const visible = students.filter((s, index) => {
     const status = resolveStatus(s, index)
-    return matches(query, s.name, s.studentId, s.department, s.phone, s.address, s.subcity, s.woreda, status)
+    const request = latestRequestOf(s.id)
+    return matches(
+      query,
+      s.name, s.studentId, s.department, s.phone, s.address, s.subcity, s.woreda, status,
+      request?.reason, ...(request?.items.map((i) => i.description) ?? []),
+    )
   })
 
   function openAddModal() {
-    setNewStudent(blankStudent)
+    setStudentDetails(studentDetailsOf(currentUser))
+    setLeaveItems([blankItem()])
+    setReason('')
     setAddError('')
     setAddOpen(true)
   }
 
-  function handleAddStudent(e) {
+  function updateLeaveItem(key, field, value) {
+    setLeaveItems((list) => list.map((item) => (item.key === key ? { ...item, [field]: value } : item)))
+  }
+
+  const setDetail = (field) => (e) => setStudentDetails({ ...studentDetails, [field]: e.target.value })
+
+  // Saves the student's details, then sends the items and reason to the
+  // proctor as a leave (exit) request for that student.
+  function handleAddItem(e) {
     e.preventDefault()
-    if (!newStudent.name.trim()) return setAddError('Please enter Student Name.')
-    if (!newStudent.studentId.trim()) return setAddError('Please enter Student ID.')
-    const username =
-      newStudent.studentId.trim().toLowerCase().replace(/[^a-z0-9]/g, '') ||
-      newStudent.name.trim().toLowerCase().replace(/\s+/g, '.')
-    const res = actions.saveUser({
-      role: 'student',
-      username,
-      name: newStudent.name.trim(),
-      studentId: newStudent.studentId.trim(),
-      department: newStudent.department,
-      phone: newStudent.phone.trim(),
-      address: newStudent.address.trim(),
-      subcity: newStudent.subcity.trim(),
-      woreda: newStudent.woreda.trim(),
-      approvalStatus: newStudent.approvalStatus,
-      status: 'active',
-      email: `${username}@student.kotebe.edu.et`,
-    })
-    if (res?.ok === false) {
-      setAddError(res.error)
-      return
+    if (!studentDetails.name.trim()) return setAddError('Please enter Student Full Name.')
+    if (!studentDetails.studentId.trim()) return setAddError('Please enter Student ID.')
+    const items = leaveItems.filter((item) => item.name.trim())
+    if (items.length === 0) return setAddError('Please enter at least one item, e.g. Clothes.')
+    if (items.some((item) => !(Number(item.quantity) >= 1))) return setAddError('Quantity must be at least 1.')
+    if (!reason.trim()) return setAddError('Please enter the reason for leaving.')
+
+    const details = Object.fromEntries(STUDENT_FIELDS.map((f) => [f, studentDetails[f].trim()]))
+    const existing = students.find((s) => s.studentId?.toLowerCase() === details.studentId.toLowerCase())
+    let saved
+    if (existing) {
+      saved = actions.saveUser({ ...existing, ...details }, { silent: true })
+    } else {
+      const username =
+        details.studentId.toLowerCase().replace(/[^a-z0-9]/g, '') || details.name.toLowerCase().replace(/\s+/g, '.')
+      saved = actions.saveUser(
+        { role: 'student', username, ...details, status: 'active', email: `${username}@student.kotebe.edu.et` },
+        { silent: true },
+      )
     }
+    if (!saved.ok) return setAddError(saved.error)
+
+    const today = todayISODate()
+    actions.createExitRequest({
+      studentId: saved.user.id,
+      reason,
+      destination: '',
+      departureDate: today,
+      returnDate: today,
+      items: items.map((item) => {
+        const name = item.name.trim()
+        return {
+          category: ITEM_CATEGORIES.find((c) => c.toLowerCase() === name.toLowerCase()) ?? 'Other',
+          description: name,
+          quantity: Number(item.quantity),
+        }
+      }),
+    })
     setAddOpen(false)
-    setNewStudent(blankStudent)
   }
 
   function handleSaveEdit(e) {
@@ -160,6 +206,9 @@ export default function MyBelongings() {
                   <th>Address</th>
                   <th>Subcity</th>
                   <th>Woreda</th>
+                  <th>Item</th>
+                  <th>Quantity</th>
+                  <th>Reason for Leaving</th>
                   <th>Status</th>
                   <th>Date & Time Registered</th>
                   <th className="right">Action</th>
@@ -168,6 +217,7 @@ export default function MyBelongings() {
               <tbody>
                 {visible.map((s, index) => {
                   const status = resolveStatus(s, index)
+                  const request = latestRequestOf(s.id)
                   return (
                     <tr key={s.id}>
                       <td className="cell-num">{index + 1}</td>
@@ -188,6 +238,21 @@ export default function MyBelongings() {
                       <td>{s.address || '—'}</td>
                       <td>{s.subcity || '—'}</td>
                       <td>{s.woreda || '—'}</td>
+                      <td>
+                        {request?.items.length ? (
+                          <ul className="cell-lines">
+                            {request.items.map((item) => <li key={item.id}>{item.description}</li>)}
+                          </ul>
+                        ) : '—'}
+                      </td>
+                      <td>
+                        {request?.items.length ? (
+                          <ul className="cell-lines">
+                            {request.items.map((item) => <li key={item.id}>{item.quantity}</li>)}
+                          </ul>
+                        ) : '—'}
+                      </td>
+                      <td className="cell-reason">{request?.reason || '—'}</td>
                       <td>
                         <StatusBadge status={status} />
                       </td>
@@ -224,7 +289,7 @@ export default function MyBelongings() {
       {/* Add Item Modal */}
       <Modal
         open={addOpen}
-        title="Add Item / Student Record"
+        title="Add Item"
         onClose={() => setAddOpen(false)}
         size="lg"
         footer={
@@ -232,79 +297,95 @@ export default function MyBelongings() {
             <button type="button" className="btn btn-ghost" onClick={() => setAddOpen(false)}>
               Cancel
             </button>
-            <button type="submit" form="add-student-form" className="btn btn-primary">
-              Add item
+            <button type="submit" form="add-item-form" className="btn btn-primary">
+              Submit
             </button>
           </>
         }
       >
-        <form id="add-student-form" className="form-grid" onSubmit={handleAddStudent}>
-          {addError && (
-            <div className="field-full">
-              <Callout tone="danger">{addError}</Callout>
+        <form id="add-item-form" className="stack" onSubmit={handleAddItem} noValidate>
+          {addError && <Callout tone="danger">{addError}</Callout>}
+
+          <h3 className="section-title">Student details</h3>
+          <div className="form-grid">
+            <Field label="Student Full Name *">
+              <input value={studentDetails.name} onChange={setDetail('name')} placeholder="e.g. Abebe Kebede" />
+            </Field>
+            <Field label="Student ID *">
+              <input value={studentDetails.studentId} onChange={setDetail('studentId')} placeholder="e.g. KU/0458/15" />
+            </Field>
+            <Field label="Department">
+              <select value={studentDetails.department} onChange={setDetail('department')}>
+                {DEPARTMENTS.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Phone Number">
+              <input value={studentDetails.phone} onChange={setDetail('phone')} placeholder="e.g. +251 920 118 447" />
+            </Field>
+            <Field label="Address">
+              <input value={studentDetails.address} onChange={setDetail('address')} placeholder="e.g. Kotebe, Addis Ababa" />
+            </Field>
+            <Field label="Subcity">
+              <input value={studentDetails.subcity} onChange={setDetail('subcity')} placeholder="e.g. Yeka" />
+            </Field>
+            <Field label="Woreda">
+              <input value={studentDetails.woreda} onChange={setDetail('woreda')} placeholder="e.g. 08" />
+            </Field>
+          </div>
+
+          <h3 className="section-title">Items to take out</h3>
+          <div className="leave-items">
+            <div className="leave-item-row leave-item-head">
+              <span className="field-label">Item *</span>
+              <span className="field-label">Quantity *</span>
+              <span />
             </div>
-          )}
+            {leaveItems.map((item) => (
+              <div key={item.key} className="leave-item-row">
+                <input
+                  value={item.name}
+                  onChange={(e) => updateLeaveItem(item.key, 'name', e.target.value)}
+                  placeholder="e.g. Clothes, T-shirt"
+                  list="item-suggestions"
+                  aria-label="Item"
+                />
+                <input
+                  type="number"
+                  min={1}
+                  value={item.quantity}
+                  onChange={(e) => updateLeaveItem(item.key, 'quantity', e.target.value)}
+                  aria-label="Quantity"
+                />
+                <button
+                  type="button"
+                  className="icon-btn danger"
+                  onClick={() => setLeaveItems((list) => list.filter((x) => x.key !== item.key))}
+                  disabled={leaveItems.length === 1}
+                  aria-label="Remove item"
+                  title="Remove item"
+                >
+                  <Icon name="trash" size={16} />
+                </button>
+              </div>
+            ))}
+            <datalist id="item-suggestions">
+              {ITEM_SUGGESTIONS.map((s) => <option key={s} value={s} />)}
+            </datalist>
+            <button type="button" className="btn btn-ghost btn-sm add-row-btn" onClick={() => setLeaveItems((list) => [...list, blankItem()])}>
+              <Icon name="plus" size={14} /> Add another item
+            </button>
+          </div>
 
-          <Field label="Student Name *">
-            <input
-              value={newStudent.name}
-              onChange={(e) => setNewStudent({ ...newStudent, name: e.target.value })}
-              placeholder="e.g. Abebe Kebede"
-              required
-            />
-          </Field>
-
-          <Field label="Student ID *">
-            <input
-              value={newStudent.studentId}
-              onChange={(e) => setNewStudent({ ...newStudent, studentId: e.target.value })}
-              placeholder="e.g. KU/0458/15"
-              required
-            />
-          </Field>
-
-          <Field label="Department">
-            <select
-              value={newStudent.department}
-              onChange={(e) => setNewStudent({ ...newStudent, department: e.target.value })}
-            >
-              {DEPARTMENTS.map((d) => (
-                <option key={d} value={d}>
-                  {d}
-                </option>
-              ))}
-            </select>
-          </Field>
-
-          <Field label="Phone Number">
-            <input
-              value={newStudent.phone}
-              onChange={(e) => setNewStudent({ ...newStudent, phone: e.target.value })}
-              placeholder="e.g. +251 920 118 447"
-            />
-          </Field>
-
-          <Field label="Address">
-            <input
-              value={newStudent.address}
-              onChange={(e) => setNewStudent({ ...newStudent, address: e.target.value })}
-              placeholder="e.g. Kotebe, Addis Ababa"
-            />
-          </Field>
-
-          <Field label="Subcity">
-            <input
-              value={newStudent.subcity}
-              onChange={(e) => setNewStudent({ ...newStudent, subcity: e.target.value })}
-              placeholder="e.g. Yeka"
-            />
-          </Field>
-
-          <Field label="Woreda">
-            <input
-              value={newStudent.woreda}
-              onChange={(e) => setNewStudent({ ...newStudent, woreda: e.target.value })}
-              placeholder="e.g. 08"
+          <Field label="Reason for leaving *" full>
+            <textarea
+              rows={3}
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="e.g. To visit my family"
             />
           </Field>
         </form>

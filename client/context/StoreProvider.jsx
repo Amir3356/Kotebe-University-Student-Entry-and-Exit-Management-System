@@ -154,11 +154,12 @@ export function StoreProvider({ children }) {
       },
 
       // Student: ask permission to leave with a list of belongings.
-      createExitRequest({ reason, destination, departureDate, returnDate, items }) {
+      // studentId defaults to the signed-in student.
+      createExitRequest({ reason, destination, departureDate, returnDate, items, studentId }) {
         const request = {
           id: uid('r'),
           code: nextRequestCode(data.exitRequests),
-          studentId: currentUser.id,
+          studentId: studentId ?? currentUser.id,
           reason: reason.trim(),
           destination: destination.trim(),
           departureDate,
@@ -248,7 +249,8 @@ export function StoreProvider({ children }) {
       },
 
       // Admin: create or update an account.
-      saveUser(user) {
+      // Pass { silent: true } to skip the toast when saving is part of a larger action.
+      saveUser(user, { silent = false } = {}) {
         const username = user.username.trim()
         const taken = data.users.some((u) => u.id !== user.id && u.username.toLowerCase() === username.toLowerCase())
         if (taken) return { ok: false, error: `Username "${username}" is already taken.` }
@@ -259,13 +261,13 @@ export function StoreProvider({ children }) {
         const cleaned = { ...user, username, name: user.name.trim() }
         if (user.id) {
           setData((prev) => ({ ...prev, users: prev.users.map((u) => (u.id === user.id ? { ...u, ...cleaned } : u)) }))
-          notify('Account updated.')
-        } else {
-          const created = { ...cleaned, id: uid('u'), status: 'active', createdAt: now() }
-          setData((prev) => ({ ...prev, users: [...prev.users, created] }))
-          notify('Account created.')
+          if (!silent) notify('Account updated.')
+          return { ok: true, user: cleaned }
         }
-        return { ok: true }
+        const created = { ...cleaned, id: uid('u'), status: 'active', createdAt: now() }
+        setData((prev) => ({ ...prev, users: [...prev.users, created] }))
+        if (!silent) notify('Account created.')
+        return { ok: true, user: created }
       },
 
       toggleUserStatus(userId) {

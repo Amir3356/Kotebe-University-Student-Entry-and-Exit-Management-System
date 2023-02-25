@@ -10,14 +10,11 @@ import {
   Modal,
   PageHeader,
   SearchInput,
-  StatusBadge,
-  Tabs,
 } from '../../components/ui'
 import { formatDateTime, matches } from '../../utils/format'
 
 export default function StudentLeaveRequests() {
   const { exitRequests, users, actions } = useStore()
-  const [tab, setTab] = useState('all')
   const [query, setQuery] = useState('')
   const [viewingRequest, setViewingRequest] = useState(null)
   const [rejectingRequest, setRejectingRequest] = useState(null)
@@ -43,15 +40,7 @@ export default function StudentLeaveRequests() {
     )
   })
 
-  const visible = tab === 'all' ? searched : searched.filter((r) => r.status === tab)
-
-  const count = (status) => searched.filter((r) => r.status === status).length
-  const tabs = [
-    { value: 'all', label: 'All', count: searched.length },
-    { value: 'pending', label: 'Pending', count: count('pending') },
-    { value: 'approved', label: 'Approved', count: count('approved') },
-    { value: 'rejected', label: 'Rejected', count: count('rejected') },
-  ]
+  const visible = searched
 
   function openReject(r) {
     setRejectingRequest(r)
@@ -79,25 +68,23 @@ export default function StudentLeaveRequests() {
       <PageHeader
         title="Student Leave Request"
         subtitle="Review, approve, or reject student departure and leave requests."
+        center
       />
 
       <div className="toolbar">
-        <Tabs tabs={tabs} value={tab} onChange={setTab} />
-        <div className="toolbar-right">
-          <SearchInput
-            value={query}
-            onChange={setQuery}
-            placeholder="Search by student, department, address, subcity…"
-          />
-        </div>
+        <SearchInput
+          value={query}
+          onChange={setQuery}
+          placeholder="Search by student name, ID, department, phone…"
+        />
       </div>
 
       <Card flush>
         {visible.length === 0 ? (
           <EmptyState
             icon="clipboard"
-            title={tab === 'pending' ? 'No pending leave requests' : 'No requests found'}
-            text={tab === 'pending' ? 'All student departure requests have been processed.' : 'No student leave requests match your search.'}
+            title="No requests found"
+            text="No student leave requests match your search."
           />
         ) : (
           <div className="table-wrap">
@@ -108,11 +95,7 @@ export default function StudentLeaveRequests() {
                   <th>Student Name</th>
                   <th>Department</th>
                   <th>Phone Number</th>
-                  <th>Address</th>
-                  <th>Subcity</th>
-                  <th>Woreda</th>
                   <th>Date & Time Registered</th>
-                  <th>Status</th>
                   <th className="right">Action</th>
                 </tr>
               </thead>
@@ -137,41 +120,28 @@ export default function StudentLeaveRequests() {
                       </td>
                       <td>{s?.department || '—'}</td>
                       <td className="nowrap">{s?.phone || '—'}</td>
-                      <td>{s?.address || '—'}</td>
-                      <td>{s?.subcity || '—'}</td>
-                      <td>{s?.woreda || '—'}</td>
                       <td className="nowrap">{formatDateTime(r.createdAt || s?.createdAt)}</td>
-                      <td>
-                        <StatusBadge status={r.status} />
-                      </td>
                       <td className="right nowrap">
-                        <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
+                        <div className="row-actions">
                           <button
                             type="button"
-                            className="btn btn-sm btn-success"
+                            className="icon-btn approve"
                             onClick={() => handleApprove(r)}
+                            aria-label={`Approve ${r.code}`}
                             title="Approve leave request"
                             disabled={r.status === 'approved'}
                           >
-                            <Icon name="check" size={14} /> Approve
+                            <Icon name="approve" size={18} />
                           </button>
                           <button
                             type="button"
-                            className="btn btn-sm btn-danger-ghost"
+                            className="icon-btn reject"
                             onClick={() => openReject(r)}
+                            aria-label={`Reject ${r.code}`}
                             title="Reject leave request"
                             disabled={r.status === 'rejected'}
                           >
-                            <Icon name="x" size={14} /> Reject
-                          </button>
-                          <button
-                            type="button"
-                            className="icon-btn"
-                            onClick={() => setViewingRequest(r)}
-                            aria-label={`View details for ${r.code}`}
-                            title="View request details"
-                          >
-                            <Icon name="eye" size={16} />
+                            <Icon name="reject" size={18} />
                           </button>
                         </div>
                       </td>

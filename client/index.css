@@ -170,6 +170,11 @@ code {
 }
 .icon-btn:hover { background: var(--neutral-soft); color: var(--text); }
 .icon-btn.danger:hover { background: var(--danger-soft); color: var(--danger); }
+.icon-btn.approve { color: var(--success); }
+.icon-btn.approve:hover:not(:disabled) { background: var(--success-soft); color: var(--success); }
+.icon-btn.reject { color: var(--danger); }
+.icon-btn.reject:hover:not(:disabled) { background: var(--danger-soft); color: var(--danger); }
+.row-actions { display: inline-flex; align-items: center; gap: 4px; }
 
 .button-row { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
 
@@ -514,6 +519,8 @@ tbody tr:last-child td { border-bottom: none; }
 /* Guard → Student Belongings */
 .belongings-table { width: 100%; min-width: 900px; }
 .belongings-table td { white-space: nowrap; }
+.belongings-table td.cell-reason { white-space: normal; min-width: 200px; max-width: 280px; }
+.cell-lines { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 .card-header-inner {
   display: flex;
   align-items: center;
@@ -580,7 +587,8 @@ tbody tr:last-child td { border-bottom: none; }
 .field select,
 .field textarea,
 .extra-row input,
-.extra-row select {
+.extra-row select,
+.leave-item-row input {
   width: 100%;
   height: 40px;
   padding: 0 12px;
@@ -594,7 +602,8 @@ tbody tr:last-child td { border-bottom: none; }
 .field select:focus,
 .field textarea:focus,
 .extra-row input:focus,
-.extra-row select:focus {
+.extra-row select:focus,
+.leave-item-row input:focus {
   outline: none;
   border-color: var(--primary);
   box-shadow: 0 0 0 3px var(--primary-soft);
@@ -602,6 +611,11 @@ tbody tr:last-child td { border-bottom: none; }
 .field select:disabled { background: var(--surface-2); color: var(--text-muted); }
 
 .extra-rows { display: flex; flex-direction: column; gap: 8px; }
+.leave-items { display: flex; flex-direction: column; gap: 8px; }
+.leave-item-row { display: grid; grid-template-columns: minmax(0, 1fr) 110px 32px; gap: 8px; align-items: center; }
+.leave-item-head { margin-bottom: -2px; }
+.add-row-btn { align-self: flex-start; }
+.icon-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 .extra-row { display: grid; grid-template-columns: 150px minmax(0, 1fr) 150px 72px 32px; gap: 8px; align-items: center; }
 .qty-input { text-align: center; }
 

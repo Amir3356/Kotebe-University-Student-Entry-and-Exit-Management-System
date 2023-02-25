@@ -35,6 +35,8 @@ import {
   User,
   ArrowRight,
   Eye,
+  CircleCheck,
+  CircleX,
 } from 'lucide-react'
 
 const ICON_MAP = {
@@ -49,6 +51,8 @@ const ICON_MAP = {
   users: Users,
   clipboard: ClipboardCheck,
   check: Check,
+  approve: CircleCheck,
+  reject: CircleX,
   x: X,
   search: Search,
   plus: Plus,
