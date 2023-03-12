@@ -1,16 +1,5 @@
 [
   {
-    "id": "u-admin-1",
-    "role": "admin",
-    "name": "Selamawit Bekele",
-    "username": "admin",
-    "password": "admin123",
-    "email": "selamawit.bekele@kotebe.edu.et",
-    "phone": "+251 911 204 118",
-    "status": "active",
-    "createdAt": "2025-09-07T06:00:00.000Z"
-  },
-  {
     "id": "u-proctor-1",
     "role": "proctor",
     "name": "Tesfaye Alemu",

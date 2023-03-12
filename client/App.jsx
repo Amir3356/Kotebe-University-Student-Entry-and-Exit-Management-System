@@ -14,15 +14,14 @@ import MyRequests from './pages/student/MyRequests'
 import GuardDashboard from './pages/guard/GuardDashboard'
 import RecordEntry from './pages/guard/RecordEntry'
 import VerifyExit from './pages/guard/VerifyExit'
+import GuardAudit from './pages/guard/GuardAudit'
 
 import ProctorDashboard from './pages/proctor/ProctorDashboard'
 import StudentLeaveRequests from './pages/proctor/StudentLeaveRequests'
 
-import ManageUsers from './pages/admin/ManageUsers'
-import AllBelongings from './pages/admin/AllBelongings'
+import AccountProvision from './pages/proctor/AccountProvision'
 
 import GateRecords from './pages/shared/GateRecords'
-import RequestsBrowser from './pages/shared/RequestsBrowser'
 
 function Home() {
   const { currentUser } = useStore()
@@ -48,6 +47,7 @@ export default function App() {
           <Route path="/guard" element={<RequireRole role="guard" />}>
             <Route index element={<Navigate to="belongings" replace />} />
             <Route path="belongings" element={<RecordEntry />} />
+            <Route path="audit" element={<GuardAudit />} />
             <Route path="dashboard" element={<GuardDashboard />} />
             <Route path="exit" element={<VerifyExit />} />
             <Route path="logs" element={<GateRecords title="Gate Log" />} />
@@ -56,15 +56,8 @@ export default function App() {
           <Route path="/proctor" element={<RequireRole role="proctor" />}>
             <Route index element={<Navigate to="requests" replace />} />
             <Route path="requests" element={<StudentLeaveRequests />} />
+            <Route path="users" element={<AccountProvision />} />
             <Route path="dashboard" element={<ProctorDashboard />} />
-          </Route>
-
-          <Route path="/admin" element={<RequireRole role="admin" />}>
-            <Route index element={<Navigate to="users" replace />} />
-            <Route path="users" element={<ManageUsers />} />
-            <Route path="requests" element={<RequestsBrowser />} />
-            <Route path="records" element={<GateRecords title="Gate Records" />} />
-            <Route path="belongings" element={<AllBelongings />} />
           </Route>
 
           <Route path="*" element={<NotFound />} />

@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useStore } from '../../context/store'
 import Icon from '../../components/Icon'
-import RequestDetails from '../../components/RequestDetails'
 import {
   Avatar,
   Card,
@@ -10,6 +9,7 @@ import {
   Modal,
   PageHeader,
   SearchInput,
+  StatusBadge,
 } from '../../components/ui'
 import { formatDateTime, matches } from '../../utils/format'
 
@@ -88,11 +88,12 @@ export default function StudentLeaveRequests() {
           />
         ) : (
           <div className="table-wrap">
-            <table className="belongings-table">
+            <table className="belongings-table table-click">
               <thead>
                 <tr>
                   <th>No</th>
                   <th>Student Name</th>
+                  <th>Student ID</th>
                   <th>Department</th>
                   <th>Phone Number</th>
                   <th>Date & Time Registered</th>
@@ -103,20 +104,22 @@ export default function StudentLeaveRequests() {
                 {visible.map((r, index) => {
                   const s = studentOf(r)
                   return (
-                    <tr key={r.id}>
+                    <tr
+                      key={r.id}
+                      onClick={() => setViewingRequest(r)}
+                      onKeyDown={(e) => e.key === 'Enter' && setViewingRequest(r)}
+                      tabIndex={0}
+                      title="View leave request details"
+                    >
                       <td className="cell-num">{index + 1}</td>
                       <td>
                         <div className="cell-item">
                           <Avatar name={s?.name ?? 'Unknown'} size="sm" />
-                          <div>
-                            <span className="row-title">{s?.name ?? 'Unknown'}</span>
-                            {s?.studentId && (
-                              <div className="muted small">
-                                <code>{s.studentId}</code>
-                              </div>
-                            )}
-                          </div>
+                          <span className="row-title">{s?.name ?? 'Unknown'}</span>
                         </div>
+                      </td>
+                      <td>
+                        <code>{s?.studentId || '—'}</code>
                       </td>
                       <td>{s?.department || '—'}</td>
                       <td className="nowrap">{s?.phone || '—'}</td>
@@ -126,7 +129,10 @@ export default function StudentLeaveRequests() {
                           <button
                             type="button"
                             className="icon-btn approve"
-                            onClick={() => handleApprove(r)}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleApprove(r)
+                            }}
                             aria-label={`Approve ${r.code}`}
                             title="Approve leave request"
                             disabled={r.status === 'approved'}
@@ -136,7 +142,10 @@ export default function StudentLeaveRequests() {
                           <button
                             type="button"
                             className="icon-btn reject"
-                            onClick={() => openReject(r)}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              openReject(r)
+                            }}
                             aria-label={`Reject ${r.code}`}
                             title="Reject leave request"
                             disabled={r.status === 'rejected'}
@@ -190,7 +199,60 @@ export default function StudentLeaveRequests() {
           </>
         }
       >
-        {viewingRequest && <RequestDetails request={viewingRequest} />}
+        {viewingRequest && (() => {
+          const s = studentOf(viewingRequest)
+          return (
+            <div className="stack">
+              <div className="card-header-inner">
+                <div className="cell-item">
+                  <Avatar name={s?.name ?? 'Unknown'} size="md" />
+                  <div>
+                    <h3 className="detail-name">{s?.name ?? 'Unknown'}</h3>
+                    <div className="muted small">
+                      <code>{s?.studentId || '—'}</code> · {s?.department || '—'}
+                    </div>
+                  </div>
+                </div>
+                <StatusBadge status={viewingRequest.status} />
+              </div>
+
+              <dl className="details-grid">
+                <div><dt>Phone Number</dt><dd>{s?.phone || '—'}</dd></div>
+                <div><dt>Date &amp; Time Registered</dt><dd>{formatDateTime(viewingRequest.createdAt)}</dd></div>
+                <div><dt>Address</dt><dd>{s?.address || '—'}</dd></div>
+                <div><dt>Subcity</dt><dd>{s?.subcity || '—'}</dd></div>
+                <div><dt>Woreda</dt><dd>{s?.woreda || '—'}</dd></div>
+                <div className="span-2"><dt>Reason for Leaving</dt><dd>{viewingRequest.reason || '—'}</dd></div>
+              </dl>
+
+              <div>
+                <h3 className="section-title">Items ({viewingRequest.items.length})</h3>
+                {viewingRequest.items.length === 0 ? (
+                  <p className="muted">No items listed.</p>
+                ) : (
+                  <div className="table-wrap detail-items">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Item</th>
+                          <th className="right">Quantity</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {viewingRequest.items.map((item) => (
+                          <tr key={item.id}>
+                            <td>{item.description}</td>
+                            <td className="right">{item.quantity}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        })()}
       </Modal>
 
       {/* Reject Confirmation Modal */}

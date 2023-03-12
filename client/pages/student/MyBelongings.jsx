@@ -38,7 +38,7 @@ function resolveStatus(s, index) {
 }
 
 // Suggestions for the item name field; the student can still type anything.
-const ITEM_SUGGESTIONS = ['Clothes', 'T-shirt', 'Trousers', 'Shoes', 'Bag', 'Books', 'Laptop', 'Mobile Phone', 'Blanket']
+const ITEM_SUGGESTIONS = ['Clothes', 'T-shirt', 'Shirt', 'Trousers', 'Jacket', 'Dress', 'Shoes', 'Bag', 'Blanket', 'Books']
 
 const blankItem = () => ({ key: uid('item'), name: '', quantity: 1 })
 
@@ -60,6 +60,8 @@ function studentDetailsOf(user) {
 export default function MyBelongings() {
   const { currentUser, users, exitRequests, actions } = useStore()
   const [query, setQuery] = useState('')
+  const [departmentFilter, setDepartmentFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState('all')
   const [addOpen, setAddOpen] = useState(false)
   const [studentDetails, setStudentDetails] = useState(() => studentDetailsOf(currentUser))
   const [leaveItems, setLeaveItems] = useState([blankItem()])
@@ -75,15 +77,29 @@ export default function MyBelongings() {
       .filter((r) => r.studentId === studentId && r.status !== 'cancelled')
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]
 
+  // Offer every known department plus any department already present in the data.
+  const departments = [...new Set([...DEPARTMENTS, ...students.map((s) => s.department).filter(Boolean)])].sort()
+
   const visible = students.filter((s, index) => {
     const status = resolveStatus(s, index)
     const request = latestRequestOf(s.id)
-    return matches(
-      query,
-      s.name, s.studentId, s.department, s.phone, s.address, s.subcity, s.woreda, status,
-      request?.reason, ...(request?.items.map((i) => i.description) ?? []),
+    return (
+      (departmentFilter === 'all' || s.department === departmentFilter) &&
+      (statusFilter === 'all' || status === statusFilter) &&
+      matches(
+        query,
+        s.name, s.studentId, s.department, s.phone, s.address, s.subcity, s.woreda, status,
+        request?.reason, ...(request?.items.map((i) => i.description) ?? []),
+      )
     )
   })
+  const filtered = query.trim() !== '' || departmentFilter !== 'all' || statusFilter !== 'all'
+
+  function clearFilters() {
+    setQuery('')
+    setDepartmentFilter('all')
+    setStatusFilter('all')
+  }
 
   function openAddModal() {
     setStudentDetails(studentDetailsOf(currentUser))
@@ -178,20 +194,41 @@ export default function MyBelongings() {
         }
       />
 
-      <div className="toolbar">
+      <div className="toolbar filter-toolbar">
         <SearchInput
           value={query}
           onChange={setQuery}
-          placeholder="Search by student name, ID, department, address, subcity, status…"
+          placeholder="Search by student name, ID, item, reason…"
         />
+        <div className="toolbar-right">
+          <select value={departmentFilter} onChange={(e) => setDepartmentFilter(e.target.value)} aria-label="Filter by department">
+            <option value="all">All departments</option>
+            {departments.map((d) => <option key={d} value={d}>{d}</option>)}
+          </select>
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} aria-label="Filter by status">
+            <option value="all">All statuses</option>
+            <option value="approve">Approve</option>
+            <option value="pending">Pending</option>
+            <option value="reject">Reject</option>
+          </select>
+          {filtered && (
+            <button type="button" className="btn btn-ghost" onClick={clearFilters}>
+              <Icon name="x" size={14} /> Clear
+            </button>
+          )}
+        </div>
       </div>
+      <p className="muted small results-count">
+        Showing {visible.length} of {students.length} students
+      </p>
 
       <Card flush>
         {visible.length === 0 ? (
           <EmptyState
             icon="box"
             title="No records found"
-            text="No students match your search."
+            text={filtered ? 'No students match your search or filters.' : 'No student records yet.'}
+            action={filtered && <button type="button" className="btn btn-ghost" onClick={clearFilters}>Clear filters</button>}
           />
         ) : (
           <div className="table-wrap">

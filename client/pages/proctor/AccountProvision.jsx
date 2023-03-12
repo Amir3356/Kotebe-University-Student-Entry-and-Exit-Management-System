@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useStore } from '../../context/store'
-import { ROLES } from '../../data'
+import { ROLES, DEPARTMENTS, GATES } from '../../data'
 import Icon from '../../components/Icon'
 import { Avatar, Callout, Card, EmptyState, Field, Modal, PageHeader, RoleBadge, StatusBadge } from '../../components/ui'
 import { ROLE_LABELS } from '../../utils/format'
@@ -13,13 +13,14 @@ const EMPTY = {
   email: '',
   phone: '',
   studentId: '',
+  department: 'Computer Science',
   year: 1,
   dorm: '',
-  gate: '',
+  gate: 'Main Gate',
   assignedBlocks: '',
 }
 
-export default function ManageUsers() {
+export default function AccountProvision() {
   const { users, currentUser, actions } = useStore()
   const [form, setForm] = useState(null)
   const [error, setError] = useState('')
@@ -40,14 +41,27 @@ export default function ManageUsers() {
     if (required.some((f) => !String(form[f]).trim())) return setError('Please fill in all required fields.')
 
     // Only keep the fields that belong to the chosen role.
-    const base = { id: form.id, role: form.role, name: form.name, username: form.username, password: form.password, email: form.email, phone: form.phone }
+    const base = {
+      id: form.id,
+      role: form.role,
+      name: form.name,
+      username: form.username,
+      password: form.password,
+      email: form.email,
+      phone: form.phone,
+    }
     const extra =
       form.role === 'student'
-        ? { studentId: (form.studentId || '').trim().toUpperCase(), ...(form.department ? { department: form.department } : {}), year: form.year ? Number(form.year) : 1, dorm: form.dorm || '' }
+        ? {
+            studentId: (form.studentId || '').trim().toUpperCase(),
+            department: form.department || 'Computer Science',
+            year: form.year ? Number(form.year) : 1,
+            dorm: form.dorm || '',
+          }
         : form.role === 'guard'
-          ? { gate: form.gate }
+          ? { gate: form.gate || 'Main Gate' }
           : form.role === 'proctor'
-            ? { assignedBlocks: form.assignedBlocks }
+            ? { assignedBlocks: form.assignedBlocks || '' }
             : {}
     const result = actions.saveUser({ ...base, ...extra })
     if (!result.ok) return setError(result.error)
@@ -57,8 +71,8 @@ export default function ManageUsers() {
   return (
     <>
       <PageHeader
-        title="Users"
-        subtitle="Manage student and staff accounts."
+        title="Account Provision"
+        subtitle="Provision and manage student, guard, and proctor accounts."
         center
         actions={
           <button type="button" className="btn btn-primary" onClick={() => openForm(null)}>
@@ -94,7 +108,10 @@ export default function ManageUsers() {
                     <td>
                       <div className="cell-item">
                         <Avatar name={u.name} size="sm" />
-                        <span className="row-title">{u.name}</span>
+                        <div>
+                          <span className="row-title">{u.name}</span>
+                          {u.studentId && <div className="muted small"><code>{u.studentId}</code></div>}
+                        </div>
                       </div>
                     </td>
                     <td>
@@ -141,14 +158,53 @@ export default function ManageUsers() {
               </select>
             </Field>
             <Field label="Full name *">
-              <input value={form.name} onChange={set('name')} />
+              <input value={form.name} onChange={set('name')} placeholder="Full name" required />
             </Field>
             <Field label="Username *">
-              <input value={form.username} onChange={set('username')} autoComplete="off" />
+              <input value={form.username} onChange={set('username')} autoComplete="off" placeholder="Username" required />
             </Field>
             <Field label="Password *">
-              <input value={form.password} onChange={set('password')} autoComplete="new-password" />
+              <input value={form.password} onChange={set('password')} autoComplete="new-password" placeholder="Password" required />
             </Field>
+            <Field label="Phone number">
+              <input value={form.phone} onChange={set('phone')} placeholder="+251 9..." />
+            </Field>
+            <Field label="Email">
+              <input type="email" value={form.email} onChange={set('email')} placeholder="email@kotebe.edu.et" />
+            </Field>
+
+            {form.role === 'student' && (
+              <>
+                <Field label="Student ID">
+                  <input value={form.studentId} onChange={set('studentId')} placeholder="KU/XXXX/YY" />
+                </Field>
+                <Field label="Department">
+                  <select value={form.department} onChange={set('department')}>
+                    {DEPARTMENTS.map((dept) => <option key={dept} value={dept}>{dept}</option>)}
+                  </select>
+                </Field>
+                <Field label="Year">
+                  <input type="number" min="1" max="6" value={form.year} onChange={set('year')} />
+                </Field>
+                <Field label="Dorm / Room">
+                  <input value={form.dorm} onChange={set('dorm')} placeholder="Block B, Room 214" />
+                </Field>
+              </>
+            )}
+
+            {form.role === 'guard' && (
+              <Field label="Assigned Gate">
+                <select value={form.gate} onChange={set('gate')}>
+                  {GATES.map((g) => <option key={g} value={g}>{g}</option>)}
+                </select>
+              </Field>
+            )}
+
+            {form.role === 'proctor' && (
+              <Field label="Assigned Blocks">
+                <input value={form.assignedBlocks} onChange={set('assignedBlocks')} placeholder="Blocks A – C (Male dormitories)" />
+              </Field>
+            )}
           </form>
         )}
       </Modal>
@@ -175,7 +231,7 @@ export default function ManageUsers() {
       >
         <p>
           <strong>{deleting?.name}</strong> will no longer be able to sign in. Their existing gate records and requests
-          are kept. Consider deactivating the account instead.
+          are kept.
         </p>
       </Modal>
     </>

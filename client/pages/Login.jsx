@@ -8,7 +8,6 @@ const ROLE_OPTIONS = [
   { value: 'student', label: 'Student' },
   { value: 'proctor', label: 'Proctor' },
   { value: 'guard', label: 'Guard' },
-  { value: 'admin', label: 'Admin' },
 ]
 
 const STEPS = [

@@ -13,7 +13,7 @@ export const ITEM_CATEGORIES = [
   'Other',
 ]
 
-export const ROLES = ['student', 'guard', 'proctor', 'admin']
+export const ROLES = ['student', 'guard', 'proctor']
 
 export const GATES = ['Main Gate', 'Back Gate']
 

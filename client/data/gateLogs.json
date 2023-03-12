@@ -64,16 +64,16 @@
     "note": "",
     "items": [
       {
-        "category": "Desktop Computer",
-        "description": "Dell OptiPlex 3080 tower with 22\" monitor",
-        "serialNumber": "DL3080-77421",
-        "quantity": 1
-      },
-      {
         "category": "Clothing",
         "description": "Shirts and trousers",
         "serialNumber": "",
         "quantity": 4
+      },
+      {
+        "category": "Clothing",
+        "description": "Shoes",
+        "serialNumber": "",
+        "quantity": 1
       }
     ]
   },
@@ -88,9 +88,15 @@
     "note": "",
     "items": [
       {
-        "category": "Laptop",
-        "description": "Dell Latitude 5420",
-        "serialNumber": "9XKQ2J3",
+        "category": "Clothing",
+        "description": "T-shirt",
+        "serialNumber": "",
+        "quantity": 3
+      },
+      {
+        "category": "Clothing",
+        "description": "Jacket",
+        "serialNumber": "",
         "quantity": 1
       }
     ]

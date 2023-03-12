@@ -71,5 +71,4 @@ export const ROLE_LABELS = {
   student: 'Student',
   guard: 'Guard',
   proctor: 'Proctor',
-  admin: 'Admin',
 }

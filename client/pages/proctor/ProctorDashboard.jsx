@@ -17,9 +17,14 @@ export default function ProctorDashboard() {
         title={`Welcome, ${currentUser.name.split(' ')[0]}`}
         subtitle={currentUser.assignedBlocks}
         actions={
-          <Link to="/proctor/requests" className="btn btn-primary">
-            <Icon name="clipboard" size={16} /> Review requests
-          </Link>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <Link to="/proctor/requests" className="btn btn-primary">
+              <Icon name="clipboard" size={16} /> Review requests
+            </Link>
+            <Link to="/proctor/users" className="btn btn-ghost">
+              <Icon name="users" size={16} /> Account Provision
+            </Link>
+          </div>
         }
       />
 

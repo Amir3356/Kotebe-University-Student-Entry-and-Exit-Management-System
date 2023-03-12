@@ -2,10 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { StoreContext } from './store'
 import { createMockData } from '../data'
 import { uid } from '../utils/format'
+import { api } from '../utils/api'
 
 // There is no backend: the mock data in data/ seeds the store, and every
 // change is persisted to localStorage so it survives reloads and role switches.
-const DATA_KEY = 'ku-seems:data:v1'
+const DATA_KEY = 'ku-seems:data:v3'
 const SESSION_KEY = 'ku-seems:session'
 
 function readStorage(key) {
@@ -38,18 +39,20 @@ function loadData() {
       }
       if (parsed && Array.isArray(parsed.users)) {
         const freshMap = Object.fromEntries(createMockData().users.map((u) => [u.id, u]))
-        parsed.users = parsed.users.map((u) => {
-          const fresh = freshMap[u.id]
-          return fresh
-            ? {
-                ...u,
-                address: u.address || fresh.address || 'Kotebe, Addis Ababa',
-                subcity: u.subcity || fresh.subcity || 'Yeka',
-                woreda: u.woreda || fresh.woreda || '08',
-                approvalStatus: u.approvalStatus || fresh.approvalStatus || 'approve',
-              }
-            : u
-        })
+        parsed.users = parsed.users
+          .filter((u) => u.role !== 'admin')
+          .map((u) => {
+            const fresh = freshMap[u.id]
+            return fresh
+              ? {
+                  ...u,
+                  address: u.address || fresh.address || 'Kotebe, Addis Ababa',
+                  subcity: u.subcity || fresh.subcity || 'Yeka',
+                  woreda: u.woreda || fresh.woreda || '08',
+                  approvalStatus: u.approvalStatus || fresh.approvalStatus || 'approve',
+                }
+              : u
+          })
       }
       return parsed
     } catch {
@@ -82,7 +85,31 @@ export function StoreProvider({ children }) {
   useEffect(() => writeStorage(DATA_KEY, JSON.stringify(data)), [data])
   useEffect(() => writeStorage(SESSION_KEY, sessionId), [sessionId])
 
-  const currentUser = data.users.find((u) => u.id === sessionId && u.status === 'active') ?? null
+  useEffect(() => {
+    async function syncFromBackend() {
+      try {
+        const [usersRes, belongingsRes, requestsRes, logsRes] = await Promise.all([
+          api.getUsers(),
+          api.getBelongings(),
+          api.getExitRequests(),
+          api.getGateLogs(),
+        ])
+        if (usersRes.ok && belongingsRes.ok && requestsRes.ok && logsRes.ok) {
+          setData({
+            users: usersRes.data,
+            belongings: belongingsRes.data,
+            exitRequests: requestsRes.data,
+            gateLogs: logsRes.data,
+          })
+        }
+      } catch {
+        // Fallback to local storage if server is unreachable
+      }
+    }
+    syncFromBackend()
+  }, [])
+
+  const currentUser = data.users.find((u) => u.id === sessionId && u.status === 'active' && u.role !== 'admin') ?? null
 
   const notify = useCallback((message, tone = 'success') => {
     const id = uid('toast')
@@ -150,6 +177,14 @@ export function StoreProvider({ children }) {
           ],
           gateLogs: [log, ...prev.gateLogs],
         }))
+        api.recordEntry({
+          studentId,
+          guardId: currentUser.id,
+          gate: currentUser.gate || 'Main Gate',
+          returningIds,
+          newItems,
+          note,
+        }).catch(() => {})
         notify(`Entry recorded with ${log.items.length} item(s).`)
       },
 
@@ -174,6 +209,14 @@ export function StoreProvider({ children }) {
           exitedAt: null,
         }
         setData((prev) => ({ ...prev, exitRequests: [request, ...prev.exitRequests] }))
+        api.createExitRequest({
+          reason,
+          destination,
+          departureDate,
+          returnDate,
+          items,
+          studentId: studentId ?? currentUser.id,
+        }).catch(() => {})
         notify(`Request ${request.code} submitted for proctor approval.`)
         return request
       },
@@ -185,6 +228,7 @@ export function StoreProvider({ children }) {
             r.id === requestId && r.status === 'pending' ? { ...r, status: 'cancelled' } : r,
           ),
         }))
+        api.cancelRequest(requestId).catch(() => {})
         notify('Request cancelled.', 'info')
       },
 
@@ -198,6 +242,7 @@ export function StoreProvider({ children }) {
               : r,
           ),
         }))
+        api.reviewRequest(requestId, decision, note, currentUser.id).catch(() => {})
         notify(decision === 'approved' ? 'Request approved.' : 'Request rejected.', decision === 'approved' ? 'success' : 'info')
       },
 
@@ -226,6 +271,7 @@ export function StoreProvider({ children }) {
           belongings: prev.belongings.map((b) => (leavingIds.includes(b.id) ? { ...b, status: 'inactive' } : b)),
           gateLogs: [log, ...prev.gateLogs],
         }))
+        api.allowExit({ requestId, guardId: currentUser.id, gate: currentUser.gate || 'Main Gate', note }).catch(() => {})
         notify(`Exit allowed for ${request.code}.`)
       },
 
@@ -245,10 +291,11 @@ export function StoreProvider({ children }) {
           items: request.items.map(snapshot),
         }
         setData((prev) => ({ ...prev, gateLogs: [log, ...prev.gateLogs] }))
+        api.denyExit({ requestId, guardId: currentUser.id, gate: currentUser.gate || 'Main Gate', reason }).catch(() => {})
         notify('Exit denied and logged.', 'danger')
       },
 
-      // Admin: create or update an account.
+      // Proctor: create or update an account.
       // Pass { silent: true } to skip the toast when saving is part of a larger action.
       saveUser(user, { silent = false } = {}) {
         const username = user.username.trim()
@@ -259,6 +306,7 @@ export function StoreProvider({ children }) {
           if (idTaken) return { ok: false, error: `Student ID ${user.studentId} already exists.` }
         }
         const cleaned = { ...user, username, name: user.name.trim() }
+        api.saveUser(cleaned).catch(() => {})
         if (user.id) {
           setData((prev) => ({ ...prev, users: prev.users.map((u) => (u.id === user.id ? { ...u, ...cleaned } : u)) }))
           if (!silent) notify('Account updated.')
@@ -274,16 +322,19 @@ export function StoreProvider({ children }) {
         const user = data.users.find((u) => u.id === userId)
         const status = user.status === 'active' ? 'inactive' : 'active'
         setData((prev) => ({ ...prev, users: prev.users.map((u) => (u.id === userId ? { ...u, status } : u)) }))
+        api.toggleUserStatus(userId).catch(() => {})
         notify(`${user.name} ${status === 'active' ? 'activated' : 'deactivated'}.`, 'info')
       },
 
       deleteUser(userId) {
         setData((prev) => ({ ...prev, users: prev.users.filter((u) => u.id !== userId) }))
+        api.deleteUser(userId).catch(() => {})
         notify('Account deleted.', 'info')
       },
 
       deleteBelonging(belongingId) {
         setData((prev) => ({ ...prev, belongings: prev.belongings.filter((b) => b.id !== belongingId) }))
+        api.deleteBelonging(belongingId).catch(() => {})
         notify('Belonging record removed.', 'info')
       },
 
@@ -296,6 +347,7 @@ export function StoreProvider({ children }) {
           ...prev,
           belongings: prev.belongings.map((b) => (b.id === belongingId ? { ...b, status: nextStatus } : b)),
         }))
+        api.toggleBelongingStatus(belongingId).catch(() => {})
         notify(`${item.description || item.category} set to ${nextStatus}.`, 'info')
       },
 
