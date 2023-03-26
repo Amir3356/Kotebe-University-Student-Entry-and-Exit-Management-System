@@ -24,9 +24,10 @@ export default function Login() {
 
   if (currentUser) return <Navigate to={`/${currentUser.role}`} replace />
 
-  function submit(e) {
+  async function submit(e) {
     e.preventDefault()
-    const result = actions.login(form.username.trim(), form.password, form.role)
+    setError('')
+    const result = await actions.login(form.username.trim(), form.password, form.role)
     if (!result.ok) setError(result.error)
   }
 

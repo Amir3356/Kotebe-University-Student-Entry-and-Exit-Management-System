@@ -28,10 +28,6 @@ export const requestService = {
   },
 
   async createRequest({ studentId, reason, destination, departureDate, returnDate, items }) {
-    if (!studentId || !reason || !destination || !departureDate) {
-      throw new Error('Student ID, reason, destination, and departure date are required.')
-    }
-
     const client = await pool.connect()
     try {
       await client.query('BEGIN')
@@ -85,10 +81,6 @@ export const requestService = {
   },
 
   async reviewRequest(id, decision, note, reviewedBy) {
-    if (!['approved', 'rejected'].includes(decision)) {
-      throw new Error('Decision must be "approved" or "rejected".')
-    }
-
     const updated = await requestRepository.review(id, decision, reviewedBy, note)
     if (!updated) {
       throw new Error('Request is not in pending status or not found.')
@@ -108,3 +100,5 @@ export const requestService = {
     return formatExitRequest(updated, items.map(formatRequestItem))
   },
 }
+
+export default requestService

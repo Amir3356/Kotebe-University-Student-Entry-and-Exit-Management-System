@@ -1,12 +1,12 @@
+import jwt from 'jsonwebtoken'
 import { userRepository } from '../repositories/userRepository.js'
 import { formatUser } from '../models/userModel.js'
 
+const JWT_SECRET = process.env.JWT_SECRET || 'kotebe_default_jwt_secret_key_change_me'
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d'
+
 export const authService = {
   async login({ username, password, role }) {
-    if (!username || !role) {
-      throw new Error('Username and role are required.')
-    }
-
     if (role === 'admin') {
       throw new Error('Admin role is disabled.')
     }
@@ -26,7 +26,23 @@ export const authService = {
       throw new Error('Invalid credentials.')
     }
 
-    return formatUser(userRow)
+    const user = formatUser(userRow)
+
+    // Generate signed JWT token using jsonwebtoken package directly
+    const token = jwt.sign(
+      {
+        id: user.id,
+        username: user.username,
+        role: user.role,
+        name: user.name,
+        studentId: user.studentId || null,
+        gate: user.gate || null,
+      },
+      JWT_SECRET,
+      { expiresIn: JWT_EXPIRES_IN },
+    )
+
+    return { user, token }
   },
 
   async getCurrentUser(id) {
@@ -38,3 +54,5 @@ export const authService = {
     return formatUser(userRow)
   },
 }
+
+export default authService

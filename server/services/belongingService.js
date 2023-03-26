@@ -14,10 +14,6 @@ export const belongingService = {
   },
 
   async createBelonging({ studentId, category, description, brand, serialNumber, color, registeredBy }) {
-    if (!studentId || !description || !description.trim()) {
-      throw new Error('Student ID and item description are required.')
-    }
-
     const id = `b-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
     const created = await belongingRepository.create({
       id,

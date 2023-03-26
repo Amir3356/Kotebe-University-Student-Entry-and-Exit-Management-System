@@ -15,11 +15,6 @@ export const userService = {
 
   async saveUser(data) {
     const { id, role, name, username, password, studentId } = data
-
-    if (!name || !name.trim() || !username || !username.trim()) {
-      throw new Error('Name and username are required.')
-    }
-
     const cleanUsername = username.trim()
 
     // Validate duplicate username
@@ -47,17 +42,13 @@ export const userService = {
       if (!updated) throw new Error('User not found.')
       return formatUser(updated)
     } else {
-      if (!password || !password.trim()) {
-        throw new Error('Password is required for new accounts.')
-      }
-
       const newId = `u-${role || 'stu'}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
       const created = await userRepository.create({
         ...data,
         id: newId,
         name: name.trim(),
         username: cleanUsername,
-        password: password.trim(),
+        password: (password || 'password123').trim(),
         studentId: studentId ? studentId.trim().toUpperCase() : null,
       })
       return formatUser(created)
@@ -79,3 +70,5 @@ export const userService = {
     return { ok: true }
   },
 }
+
+export default userService

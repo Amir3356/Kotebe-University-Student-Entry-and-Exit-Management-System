@@ -5,28 +5,13 @@ import gateLogs from './gateLogs.json'
 
 export { users, belongings, exitRequests, gateLogs }
 
-export const ITEM_CATEGORIES = [
-  'Laptop',
-  'Desktop Computer',
-  'Tablet',
-  'Electronics',
-  'Other',
-]
-
-export const ROLES = ['student', 'guard', 'proctor']
-
-export const GATES = ['Main Gate', 'Back Gate']
-
-export const DEPARTMENTS = [
-  'Accounting',
-  'Biology',
-  'Civil Engineering',
-  'Computer Science',
-  'English Language',
-  'Information Systems',
-  'Mathematics Education',
-  'Physics',
-]
+export {
+  ITEM_CATEGORIES,
+  ROLES,
+  ROLE_LABELS,
+  GATES,
+  DEPARTMENTS,
+} from '../models'
 
 export function createMockData() {
   return structuredClone({ users, belongings, exitRequests, gateLogs })

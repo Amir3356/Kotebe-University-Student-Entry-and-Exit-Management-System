@@ -2,10 +2,15 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { StoreContext } from './store'
 import { createMockData } from '../data'
 import { uid } from '../utils/format'
-import { api } from '../utils/api'
+import { api } from '../api'
+import {
+  authService,
+  userService,
+  belongingService,
+  requestService,
+  gateService,
+} from '../services'
 
-// There is no backend: the mock data in data/ seeds the store, and every
-// change is persisted to localStorage so it survives reloads and role switches.
 const DATA_KEY = 'ku-seems:data:v3'
 const SESSION_KEY = 'ku-seems:session'
 
@@ -62,21 +67,6 @@ function loadData() {
   return createMockData()
 }
 
-function snapshot(item) {
-  return {
-    category: item.category,
-    description: item.description,
-    serialNumber: item.serialNumber || '',
-    quantity: Number(item.quantity) || 1,
-  }
-}
-
-function nextRequestCode(requests) {
-  const year = new Date().getFullYear()
-  const max = requests.reduce((acc, r) => Math.max(acc, Number(r.code.split('-').pop()) || 0), 0)
-  return `EXR-${year}-${String(max + 1).padStart(4, '0')}`
-}
-
 export function StoreProvider({ children }) {
   const [data, setData] = useState(loadData)
   const [sessionId, setSessionId] = useState(() => readStorage(SESSION_KEY))
@@ -121,54 +111,32 @@ export function StoreProvider({ children }) {
     const now = () => new Date().toISOString()
 
     return {
-      // Testing mode: any username/password is accepted and the chosen role decides
-      // which dashboard opens. If the username matches a mock account of that role,
-      // that account is used; otherwise the first active mock account of the role.
-      login(username, password, role) {
-        const ofRole = data.users.filter((u) => u.role === role && u.status === 'active')
-        const query = username.trim().toLowerCase()
-        const user =
-          ofRole.find(
-            (u) =>
-              u.username.toLowerCase() === query ||
-              (u.studentId && u.studentId.toLowerCase() === query),
-          ) ?? ofRole[0]
-        if (!user) return { ok: false, error: `There is no active ${role} account in the mock data.` }
-        setSessionId(user.id)
-        return { ok: true, user }
+      // JWT Authentication
+      async login(username, password, role) {
+        const res = await authService.authenticate(data.users, username, password, role)
+        if (!res.ok) return res
+        setSessionId(res.user.id)
+        return { ok: true, user: res.user }
       },
 
       logout() {
+        authService.logout()
         setSessionId(null)
       },
 
       // Guard: record a student entering campus with belongings.
-      recordEntry({ studentId, returningIds, newItems, note }) {
-        const timestamp = now()
-        const created = newItems.map((item) => ({
-          id: uid('b'),
-          studentId,
-          category: item.category,
-          description: item.description,
-          brand: item.brand || '',
-          serialNumber: item.serialNumber || '',
-          color: item.color || '',
-          status: 'active',
-          registeredBy: currentUser.id,
-          registeredAt: timestamp,
-        }))
+      recordEntry({ studentId, returningIds = [], newItems = [], note = '' }) {
+        const created = belongingService.createBelongingItems(newItems, studentId, currentUser?.id)
         const returning = data.belongings.filter((b) => returningIds.includes(b.id))
-        const log = {
-          id: uid('g'),
-          type: 'entry',
+        const log = gateService.processEntry({
           studentId,
-          guardId: currentUser.id,
-          gate: currentUser.gate || 'Main Gate',
-          timestamp,
-          requestId: null,
-          note: note.trim(),
-          items: [...returning, ...created].map(snapshot),
-        }
+          guardId: currentUser?.id,
+          gate: currentUser?.gate || 'Main Gate',
+          returningIds,
+          createdItems: [...returning, ...created],
+          note,
+        })
+
         setData((prev) => ({
           ...prev,
           belongings: [
@@ -177,72 +145,49 @@ export function StoreProvider({ children }) {
           ],
           gateLogs: [log, ...prev.gateLogs],
         }))
-        api.recordEntry({
-          studentId,
-          guardId: currentUser.id,
-          gate: currentUser.gate || 'Main Gate',
-          returningIds,
-          newItems,
-          note,
-        }).catch(() => {})
         notify(`Entry recorded with ${log.items.length} item(s).`)
       },
 
       // Student: ask permission to leave with a list of belongings.
-      // studentId defaults to the signed-in student.
       createExitRequest({ reason, destination, departureDate, returnDate, items, studentId }) {
-        const request = {
-          id: uid('r'),
-          code: nextRequestCode(data.exitRequests),
-          studentId: studentId ?? currentUser.id,
-          reason: reason.trim(),
-          destination: destination.trim(),
-          departureDate,
-          returnDate,
-          items: items.map((item) => ({ id: uid('ri'), belongingId: item.belongingId ?? null, ...snapshot(item) })),
-          status: 'pending',
-          createdAt: now(),
-          reviewedBy: null,
-          reviewedAt: null,
-          reviewNote: '',
-          verifiedBy: null,
-          exitedAt: null,
-        }
-        setData((prev) => ({ ...prev, exitRequests: [request, ...prev.exitRequests] }))
-        api.createExitRequest({
+        const targetStudentId = studentId ?? currentUser?.id
+        const request = requestService.buildExitRequest({
           reason,
           destination,
           departureDate,
           returnDate,
           items,
-          studentId: studentId ?? currentUser.id,
-        }).catch(() => {})
+          studentId: targetStudentId,
+          existingRequests: data.exitRequests,
+        })
+
+        setData((prev) => ({ ...prev, exitRequests: [request, ...prev.exitRequests] }))
         notify(`Request ${request.code} submitted for proctor approval.`)
         return request
       },
 
       cancelRequest(requestId) {
+        requestService.cancelRequest(requestId)
         setData((prev) => ({
           ...prev,
           exitRequests: prev.exitRequests.map((r) =>
             r.id === requestId && r.status === 'pending' ? { ...r, status: 'cancelled' } : r,
           ),
         }))
-        api.cancelRequest(requestId).catch(() => {})
         notify('Request cancelled.', 'info')
       },
 
       // Proctor: approve or reject a departure request.
       reviewRequest(requestId, decision, note) {
+        requestService.reviewRequest(requestId, decision, note, currentUser?.id)
         setData((prev) => ({
           ...prev,
           exitRequests: prev.exitRequests.map((r) =>
             r.id === requestId
-              ? { ...r, status: decision, reviewedBy: currentUser.id, reviewedAt: now(), reviewNote: note.trim() }
+              ? { ...r, status: decision, reviewedBy: currentUser?.id, reviewedAt: now(), reviewNote: note.trim() }
               : r,
           ),
         }))
-        api.reviewRequest(requestId, decision, note, currentUser.id).catch(() => {})
         notify(decision === 'approved' ? 'Request approved.' : 'Request rejected.', decision === 'approved' ? 'success' : 'info')
       },
 
@@ -250,28 +195,22 @@ export function StoreProvider({ children }) {
       allowExit(requestId, note) {
         const request = data.exitRequests.find((r) => r.id === requestId)
         if (!request) return
-        const timestamp = now()
+        const { log, timestamp } = gateService.processExit({
+          request,
+          guardId: currentUser?.id,
+          gate: currentUser?.gate || 'Main Gate',
+          note,
+        })
         const leavingIds = request.items.map((i) => i.belongingId).filter(Boolean)
-        const log = {
-          id: uid('g'),
-          type: 'exit',
-          studentId: request.studentId,
-          guardId: currentUser.id,
-          gate: currentUser.gate || 'Main Gate',
-          timestamp,
-          requestId,
-          note: note.trim(),
-          items: request.items.map(snapshot),
-        }
+
         setData((prev) => ({
           ...prev,
           exitRequests: prev.exitRequests.map((r) =>
-            r.id === requestId ? { ...r, status: 'completed', verifiedBy: currentUser.id, exitedAt: timestamp } : r,
+            r.id === requestId ? { ...r, status: 'completed', verifiedBy: currentUser?.id, exitedAt: timestamp } : r,
           ),
           belongings: prev.belongings.map((b) => (leavingIds.includes(b.id) ? { ...b, status: 'inactive' } : b)),
           gateLogs: [log, ...prev.gateLogs],
         }))
-        api.allowExit({ requestId, guardId: currentUser.id, gate: currentUser.gate || 'Main Gate', note }).catch(() => {})
         notify(`Exit allowed for ${request.code}.`)
       },
 
@@ -279,39 +218,30 @@ export function StoreProvider({ children }) {
       denyExit(requestId, reason) {
         const request = data.exitRequests.find((r) => r.id === requestId)
         if (!request) return
-        const log = {
-          id: uid('g'),
-          type: 'denied',
-          studentId: request.studentId,
-          guardId: currentUser.id,
-          gate: currentUser.gate || 'Main Gate',
-          timestamp: now(),
-          requestId,
-          note: reason.trim(),
-          items: request.items.map(snapshot),
-        }
+        const log = gateService.processDenial({
+          request,
+          guardId: currentUser?.id,
+          gate: currentUser?.gate || 'Main Gate',
+          reason,
+        })
         setData((prev) => ({ ...prev, gateLogs: [log, ...prev.gateLogs] }))
-        api.denyExit({ requestId, guardId: currentUser.id, gate: currentUser.gate || 'Main Gate', reason }).catch(() => {})
         notify('Exit denied and logged.', 'danger')
       },
 
       // Proctor: create or update an account.
-      // Pass { silent: true } to skip the toast when saving is part of a larger action.
       saveUser(user, { silent = false } = {}) {
-        const username = user.username.trim()
-        const taken = data.users.some((u) => u.id !== user.id && u.username.toLowerCase() === username.toLowerCase())
-        if (taken) return { ok: false, error: `Username "${username}" is already taken.` }
-        if (user.role === 'student' && user.studentId?.trim()) {
-          const idTaken = data.users.some((u) => u.id !== user.id && u.studentId && u.studentId.trim().toLowerCase() === user.studentId.trim().toLowerCase())
-          if (idTaken) return { ok: false, error: `Student ID ${user.studentId} already exists.` }
-        }
-        const cleaned = { ...user, username, name: user.name.trim() }
+        const validation = userService.validateAndPrepareUser(user, data.users)
+        if (!validation.ok) return validation
+
+        const { cleaned } = validation
         api.saveUser(cleaned).catch(() => {})
+
         if (user.id) {
           setData((prev) => ({ ...prev, users: prev.users.map((u) => (u.id === user.id ? { ...u, ...cleaned } : u)) }))
           if (!silent) notify('Account updated.')
           return { ok: true, user: cleaned }
         }
+
         const created = { ...cleaned, id: uid('u'), status: 'active', createdAt: now() }
         setData((prev) => ({ ...prev, users: [...prev.users, created] }))
         if (!silent) notify('Account created.')
@@ -320,21 +250,22 @@ export function StoreProvider({ children }) {
 
       toggleUserStatus(userId) {
         const user = data.users.find((u) => u.id === userId)
-        const status = user.status === 'active' ? 'inactive' : 'active'
-        setData((prev) => ({ ...prev, users: prev.users.map((u) => (u.id === userId ? { ...u, status } : u)) }))
-        api.toggleUserStatus(userId).catch(() => {})
-        notify(`${user.name} ${status === 'active' ? 'activated' : 'deactivated'}.`, 'info')
+        if (!user) return
+        const nextStatus = user.status === 'active' ? 'inactive' : 'active'
+        userService.toggleStatus(userId)
+        setData((prev) => ({ ...prev, users: prev.users.map((u) => (u.id === userId ? { ...u, status: nextStatus } : u)) }))
+        notify(`${user.name} ${nextStatus === 'active' ? 'activated' : 'deactivated'}.`, 'info')
       },
 
       deleteUser(userId) {
+        userService.deleteUser(userId)
         setData((prev) => ({ ...prev, users: prev.users.filter((u) => u.id !== userId) }))
-        api.deleteUser(userId).catch(() => {})
         notify('Account deleted.', 'info')
       },
 
       deleteBelonging(belongingId) {
+        belongingService.deleteBelonging(belongingId)
         setData((prev) => ({ ...prev, belongings: prev.belongings.filter((b) => b.id !== belongingId) }))
-        api.deleteBelonging(belongingId).catch(() => {})
         notify('Belonging record removed.', 'info')
       },
 
@@ -343,11 +274,11 @@ export function StoreProvider({ children }) {
         if (!item) return
         const isCurrentActive = item.status === 'active' || item.status === 'on_campus'
         const nextStatus = isCurrentActive ? 'inactive' : 'active'
+        belongingService.toggleStatus(belongingId)
         setData((prev) => ({
           ...prev,
           belongings: prev.belongings.map((b) => (b.id === belongingId ? { ...b, status: nextStatus } : b)),
         }))
-        api.toggleBelongingStatus(belongingId).catch(() => {})
         notify(`${item.description || item.category} set to ${nextStatus}.`, 'info')
       },
 
