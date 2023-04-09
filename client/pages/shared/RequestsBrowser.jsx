@@ -60,23 +60,31 @@ export default function RequestsBrowser({ canReview = false }) {
       </div>
 
       <Card flush>
-        {visible.length === 0 ? (
-          <EmptyState icon="clipboard" title={tab === 'pending' ? 'All caught up' : 'No requests'} text={tab === 'pending' ? 'There are no requests waiting for review.' : 'Nothing matches this filter.'} />
-        ) : (
-          <div className="table-wrap">
-            <table className="table-click">
-              <thead>
+        <div className="table-wrap">
+          <table className="table-click">
+            <thead>
+              <tr>
+                <th>Request</th>
+                <th>Student</th>
+                <th>Destination</th>
+                <th>Dates</th>
+                <th>Items</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visible.length === 0 ? (
                 <tr>
-                  <th>Request</th>
-                  <th>Student</th>
-                  <th>Destination</th>
-                  <th>Dates</th>
-                  <th>Items</th>
-                  <th>Status</th>
+                  <td colSpan="6" style={{ padding: '36px 16px', textAlign: 'center' }}>
+                    <EmptyState
+                      icon="clipboard"
+                      title={tab === 'pending' ? 'All caught up' : 'No requests'}
+                      text={tab === 'pending' ? 'There are no requests waiting for review.' : 'Nothing matches this filter.'}
+                    />
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {visible.map((r) => {
+              ) : (
+                visible.map((r) => {
                   const s = studentOf(r)
                   return (
                     <tr key={r.id} onClick={() => openRequest(r.id)}>
@@ -99,11 +107,11 @@ export default function RequestsBrowser({ canReview = false }) {
                       <td><StatusBadge status={r.status} /></td>
                     </tr>
                   )
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </Card>
 
       <Modal

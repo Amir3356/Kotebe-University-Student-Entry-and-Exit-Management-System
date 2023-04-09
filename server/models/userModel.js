@@ -36,6 +36,7 @@ export const userCreateSchema = z.object({
   assignedBlocks: z.string().optional().nullable(),
   status: z.enum(['active', 'inactive']).default('active'),
   approvalStatus: z.enum(['approve', 'pending', 'reject']).default('approve'),
+  idempotencyKey: z.string().optional().nullable(),
 })
 
 export const userUpdateSchema = userCreateSchema.partial()

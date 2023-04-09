@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useStore } from '../../context/store'
-import { ROLES, DEPARTMENTS, GATES } from '../../data'
+import { ROLES } from '../../models'
 import Icon from '../../components/Icon'
 import { Avatar, Callout, Card, EmptyState, Field, Modal, PageHeader, RoleBadge, StatusBadge } from '../../components/ui'
 import { ROLE_LABELS } from '../../utils/format'
@@ -10,20 +10,14 @@ const EMPTY = {
   name: '',
   username: '',
   password: '',
-  email: '',
-  phone: '',
   studentId: '',
-  department: 'Computer Science',
-  year: 1,
-  dorm: '',
-  gate: 'Main Gate',
-  assignedBlocks: '',
 }
 
 export default function AccountProvision() {
   const { users, currentUser, actions } = useStore()
   const [form, setForm] = useState(null)
   const [error, setError] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [deleting, setDeleting] = useState(null)
 
   const visible = users.filter((u) => u.role !== 'admin')
@@ -31,41 +25,53 @@ export default function AccountProvision() {
   const set = (field) => (e) => setForm({ ...form, [field]: e.target.value })
 
   function openForm(user) {
-    setForm(user ? { ...EMPTY, ...user } : { ...EMPTY, role: 'student' })
+    const idempotencyKey = user
+      ? null
+      : `idem_user_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
+    setForm(user ? { ...user } : { ...EMPTY, role: 'student', idempotencyKey })
     setError('')
+    setIsSubmitting(false)
   }
 
-  function save(e) {
+  async function save(e) {
     e.preventDefault()
+    if (isSubmitting) return
+
     const required = ['name', 'username', 'password']
-    if (required.some((f) => !String(form[f]).trim())) return setError('Please fill in all required fields.')
+    if (form.role === 'student') required.push('studentId')
+    if (required.some((f) => !String(form[f] || '').trim())) {
+      return setError('Please fill in all required fields.')
+    }
+
+    setIsSubmitting(true)
+    setError('')
 
     // Only keep the fields that belong to the chosen role.
     const base = {
       id: form.id,
       role: form.role,
-      name: form.name,
-      username: form.username,
+      name: form.name.trim(),
+      username: form.username.trim(),
       password: form.password,
-      email: form.email,
-      phone: form.phone,
+      idempotencyKey: form.idempotencyKey,
     }
     const extra =
       form.role === 'student'
-        ? {
-            studentId: (form.studentId || '').trim().toUpperCase(),
-            department: form.department || 'Computer Science',
-            year: form.year ? Number(form.year) : 1,
-            dorm: form.dorm || '',
-          }
-        : form.role === 'guard'
-          ? { gate: form.gate || 'Main Gate' }
-          : form.role === 'proctor'
-            ? { assignedBlocks: form.assignedBlocks || '' }
-            : {}
-    const result = actions.saveUser({ ...base, ...extra })
-    if (!result.ok) return setError(result.error)
-    setForm(null)
+        ? { studentId: (form.studentId || '').trim().toUpperCase() }
+        : {}
+
+    try {
+      const result = await actions.saveUser({ ...base, ...extra })
+      if (!result.ok) {
+        setIsSubmitting(false)
+        return setError(result.error)
+      }
+      setForm(null)
+    } catch (err) {
+      setError(err.message || 'An unexpected error occurred.')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -82,27 +88,31 @@ export default function AccountProvision() {
       />
 
       <Card flush>
-        {visible.length === 0 ? (
-          <EmptyState
-            icon="users"
-            title="No accounts found"
-            text="Create an account to get started."
-          />
-        ) : (
-          <div className="table-wrap">
-            <table className="users-table">
-              <thead>
+        <div className="table-wrap">
+          <table className="users-table">
+            <thead>
+              <tr>
+                <th>No</th>
+                <th>Full name</th>
+                <th>Username</th>
+                <th>Role</th>
+                <th>Status</th>
+                <th className="right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visible.length === 0 ? (
                 <tr>
-                  <th>No</th>
-                  <th>Full name</th>
-                  <th>Username</th>
-                  <th>Role</th>
-                  <th>Status</th>
-                  <th className="right">Actions</th>
+                  <td colSpan="6" style={{ padding: '36px 16px', textAlign: 'center' }}>
+                    <EmptyState
+                      icon="users"
+                      title="No accounts found"
+                      text="Create an account to get started."
+                    />
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {visible.map((u, index) => (
+              ) : (
+                visible.map((u, index) => (
                   <tr key={u.id}>
                     <td className="cell-num">{index + 1}</td>
                     <td>
@@ -123,41 +133,50 @@ export default function AccountProvision() {
                       <button type="button" className="icon-btn" onClick={() => openForm(u)} aria-label={`Edit ${u.name}`} title="Edit">
                         <Icon name="edit" size={16} />
                       </button>
-                      {u.id !== currentUser.id && (
+                      {u.id !== currentUser?.id && (
                         <button type="button" className="icon-btn danger" onClick={() => setDeleting(u)} aria-label={`Delete ${u.name}`} title="Delete">
                           <Icon name="trash" size={16} />
                         </button>
                       )}
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </Card>
 
       <Modal
         open={!!form}
         title={form?.id ? 'Edit account' : 'Create account'}
         onClose={() => setForm(null)}
-        size="lg"
+        size="md"
         footer={
           <>
-            <button type="button" className="btn btn-ghost" onClick={() => setForm(null)}>Cancel</button>
-            <button type="submit" form="user-form" className="btn btn-primary">{form?.id ? 'Save changes' : 'Create account'}</button>
+            <button type="button" className="btn btn-ghost" onClick={() => setForm(null)} disabled={isSubmitting}>Cancel</button>
+            <button type="submit" form="user-form" className="btn btn-primary" disabled={isSubmitting}>
+              {isSubmitting ? (form?.id ? 'Saving...' : 'Creating...') : (form?.id ? 'Save changes' : 'Create account')}
+            </button>
           </>
         }
       >
         {form && (
           <form id="user-form" className="form-grid" onSubmit={save} noValidate>
             {error && <div className="field-full"><Callout tone="danger">{error}</Callout></div>}
-            <Field label="Role">
-              <select value={form.role} onChange={set('role')} disabled={!!form.id}>
+            <Field label="Role" full={form.role !== 'student'}>
+              <select value={form.role} onChange={set('role')}>
                 {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
               </select>
             </Field>
-            <Field label="Full name *">
+
+            {form.role === 'student' && (
+              <Field label="Student ID *">
+                <input value={form.studentId} onChange={set('studentId')} placeholder="KU/XXXX/YY" required />
+              </Field>
+            )}
+
+            <Field label="Full name *" full>
               <input value={form.name} onChange={set('name')} placeholder="Full name" required />
             </Field>
             <Field label="Username *">
@@ -166,45 +185,6 @@ export default function AccountProvision() {
             <Field label="Password *">
               <input value={form.password} onChange={set('password')} autoComplete="new-password" placeholder="Password" required />
             </Field>
-            <Field label="Phone number">
-              <input value={form.phone} onChange={set('phone')} placeholder="+251 9..." />
-            </Field>
-            <Field label="Email">
-              <input type="email" value={form.email} onChange={set('email')} placeholder="email@kotebe.edu.et" />
-            </Field>
-
-            {form.role === 'student' && (
-              <>
-                <Field label="Student ID">
-                  <input value={form.studentId} onChange={set('studentId')} placeholder="KU/XXXX/YY" />
-                </Field>
-                <Field label="Department">
-                  <select value={form.department} onChange={set('department')}>
-                    {DEPARTMENTS.map((dept) => <option key={dept} value={dept}>{dept}</option>)}
-                  </select>
-                </Field>
-                <Field label="Year">
-                  <input type="number" min="1" max="6" value={form.year} onChange={set('year')} />
-                </Field>
-                <Field label="Dorm / Room">
-                  <input value={form.dorm} onChange={set('dorm')} placeholder="Block B, Room 214" />
-                </Field>
-              </>
-            )}
-
-            {form.role === 'guard' && (
-              <Field label="Assigned Gate">
-                <select value={form.gate} onChange={set('gate')}>
-                  {GATES.map((g) => <option key={g} value={g}>{g}</option>)}
-                </select>
-              </Field>
-            )}
-
-            {form.role === 'proctor' && (
-              <Field label="Assigned Blocks">
-                <input value={form.assignedBlocks} onChange={set('assignedBlocks')} placeholder="Blocks A – C (Male dormitories)" />
-              </Field>
-            )}
           </form>
         )}
       </Modal>

@@ -80,28 +80,32 @@ export default function StudentLeaveRequests() {
       </div>
 
       <Card flush>
-        {visible.length === 0 ? (
-          <EmptyState
-            icon="clipboard"
-            title="No requests found"
-            text="No student leave requests match your search."
-          />
-        ) : (
-          <div className="table-wrap">
-            <table className="belongings-table table-click">
-              <thead>
+        <div className="table-wrap">
+          <table className="belongings-table table-click">
+            <thead>
+              <tr>
+                <th>No</th>
+                <th>Student Name</th>
+                <th>Student ID</th>
+                <th>Department</th>
+                <th>Phone Number</th>
+                <th>Date & Time Registered</th>
+                <th className="right">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visible.length === 0 ? (
                 <tr>
-                  <th>No</th>
-                  <th>Student Name</th>
-                  <th>Student ID</th>
-                  <th>Department</th>
-                  <th>Phone Number</th>
-                  <th>Date & Time Registered</th>
-                  <th className="right">Action</th>
+                  <td colSpan="7" style={{ padding: '36px 16px', textAlign: 'center' }}>
+                    <EmptyState
+                      icon="clipboard"
+                      title="No requests found"
+                      text="No student leave requests match your search."
+                    />
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {visible.map((r, index) => {
+              ) : (
+                visible.map((r, index) => {
                   const s = studentOf(r)
                   return (
                     <tr
@@ -156,11 +160,11 @@ export default function StudentLeaveRequests() {
                       </td>
                     </tr>
                   )
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </Card>
 
       {/* View Request Details Modal */}

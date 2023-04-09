@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../../context/store'
-import { ITEM_CATEGORIES } from '../../data'
+import { ITEM_CATEGORIES } from '../../models'
 import Icon, { CategoryIcon } from '../../components/Icon'
 import { Callout, Card, Field, PageHeader } from '../../components/ui'
 import { formatDate, todayISODate, uid } from '../../utils/format'

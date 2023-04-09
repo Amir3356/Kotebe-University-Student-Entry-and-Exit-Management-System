@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { StoreContext } from './store'
-import { createMockData } from '../data'
 import { uid } from '../utils/format'
 import { api } from '../api'
 import {
@@ -11,8 +10,60 @@ import {
   gateService,
 } from '../services'
 
-const DATA_KEY = 'ku-seems:data:v3'
+const DATA_KEY = 'ku-seems:data:v5'
 const SESSION_KEY = 'ku-seems:session'
+const AUTH_USER_KEY = 'ku-seems:auth-user'
+
+// Clear any legacy localStorage keys that may hold stale mock data
+const LEGACY_KEYS = [
+  'ku-seems:data',
+  'ku-seems:data:v1',
+  'ku-seems:data:v2',
+  'ku-seems:data:v3',
+  'ku-seems:data:v4',
+]
+
+try {
+  LEGACY_KEYS.forEach((k) => localStorage.removeItem(k))
+} catch {
+  // Storage unavailable in private browsing
+}
+
+const MOCK_USER_IDS = new Set([
+  'u-stu-1', 'u-stu-2', 'u-stu-3', 'u-stu-4', 'u-stu-5', 'u-stu-6', 'u-stu-7', 'u-stu-8',
+  'u-guard-1', 'u-guard-2',
+  'u-proctor-1', 'u-proctor-2',
+])
+
+const MOCK_USERNAMES = new Set([
+  'student', 'hana', 'yonas', 'meron', 'bereket', 'liya', 'natnael', 'eden',
+  'guard', 'kebede',
+  'proctor', 'almaz',
+])
+
+function isMockUser(u) {
+  if (!u) return false
+  if (MOCK_USER_IDS.has(u.id)) return true
+  if (u.username && MOCK_USERNAMES.has(u.username.toLowerCase())) return true
+  return false
+}
+
+export const SEED_PROCTOR = {
+  id: 'u-proctor-amir',
+  name: 'Amir Siraj',
+  username: 'Amir3356',
+  password: 'AEHJSS36',
+  role: 'proctor',
+  status: 'active',
+  createdAt: '2026-10-14T00:00:00.000Z',
+}
+
+const EMPTY_DATA = {
+  users: [SEED_PROCTOR],
+  belongings: [],
+  exitRequests: [],
+  gateLogs: [],
+}
 
 function readStorage(key) {
   try {
@@ -36,70 +87,97 @@ function loadData() {
   if (raw) {
     try {
       const parsed = JSON.parse(raw)
-      if (parsed && Array.isArray(parsed.belongings)) {
-        parsed.belongings = parsed.belongings.map((b) => ({
-          ...b,
-          status: b.status === 'off_campus' || b.status === 'inactive' ? 'inactive' : 'active',
-        }))
+      const validUsers = Array.isArray(parsed?.users)
+        ? parsed.users.filter((u) => u.role !== 'admin' && !isMockUser(u))
+        : []
+
+      const hasAmir = validUsers.some(
+        (u) => u.username?.toLowerCase() === 'amir3356' || u.id === SEED_PROCTOR.id,
+      )
+      const users = hasAmir ? validUsers : [SEED_PROCTOR, ...validUsers]
+
+      return {
+        users,
+        belongings: Array.isArray(parsed?.belongings)
+          ? parsed.belongings.filter((b) => !b.id?.startsWith('b-') && !MOCK_USER_IDS.has(b.studentId))
+          : [],
+        exitRequests: Array.isArray(parsed?.exitRequests)
+          ? parsed.exitRequests.filter((r) => !r.id?.startsWith('r-') && !MOCK_USER_IDS.has(r.studentId))
+          : [],
+        gateLogs: Array.isArray(parsed?.gateLogs)
+          ? parsed.gateLogs.filter((g) => !g.id?.startsWith('g-') && !MOCK_USER_IDS.has(g.studentId))
+          : [],
       }
-      if (parsed && Array.isArray(parsed.users)) {
-        const freshMap = Object.fromEntries(createMockData().users.map((u) => [u.id, u]))
-        parsed.users = parsed.users
-          .filter((u) => u.role !== 'admin')
-          .map((u) => {
-            const fresh = freshMap[u.id]
-            return fresh
-              ? {
-                  ...u,
-                  address: u.address || fresh.address || 'Kotebe, Addis Ababa',
-                  subcity: u.subcity || fresh.subcity || 'Yeka',
-                  woreda: u.woreda || fresh.woreda || '08',
-                  approvalStatus: u.approvalStatus || fresh.approvalStatus || 'approve',
-                }
-              : u
-          })
-      }
-      return parsed
     } catch {
-      // fall through to fresh mock data
+      // Storage corrupted, fall back to empty
     }
   }
-  return createMockData()
+  return EMPTY_DATA
 }
 
 export function StoreProvider({ children }) {
   const [data, setData] = useState(loadData)
-  const [sessionId, setSessionId] = useState(() => readStorage(SESSION_KEY))
+  const [sessionId, setSessionId] = useState(() => readStorage(SESSION_KEY) || SEED_PROCTOR.id)
+  const [currentUser, setCurrentUser] = useState(() => {
+    const rawStored = readStorage(AUTH_USER_KEY)
+    if (rawStored) {
+      try {
+        const u = JSON.parse(rawStored)
+        if (u && !isMockUser(u)) return u
+      } catch {}
+    }
+    const initial = loadData()
+    const found = initial.users.find((u) => u.id === sessionId && u.status === 'active' && u.role !== 'admin')
+    if (found) return found
+
+    return SEED_PROCTOR
+  })
   const [toasts, setToasts] = useState([])
 
   useEffect(() => writeStorage(DATA_KEY, JSON.stringify(data)), [data])
   useEffect(() => writeStorage(SESSION_KEY, sessionId), [sessionId])
+  useEffect(() => {
+    if (currentUser) writeStorage(AUTH_USER_KEY, JSON.stringify(currentUser))
+    else writeStorage(AUTH_USER_KEY, null)
+  }, [currentUser])
 
   useEffect(() => {
+    let isMounted = true
     async function syncFromBackend() {
       try {
-        const [usersRes, belongingsRes, requestsRes, logsRes] = await Promise.all([
+        const [usersRes, belongingsRes, requestsRes, logsRes] = await Promise.allSettled([
           api.getUsers(),
           api.getBelongings(),
           api.getExitRequests(),
           api.getGateLogs(),
         ])
-        if (usersRes.ok && belongingsRes.ok && requestsRes.ok && logsRes.ok) {
-          setData({
-            users: usersRes.data,
-            belongings: belongingsRes.data,
-            exitRequests: requestsRes.data,
-            gateLogs: logsRes.data,
-          })
-        }
+        if (!isMounted) return
+
+        setData((prev) => {
+          const next = { ...prev }
+          if (usersRes.status === 'fulfilled' && usersRes.value?.ok && Array.isArray(usersRes.value.data)) {
+            next.users = usersRes.value.data.filter((u) => u.role !== 'admin' && !isMockUser(u))
+          }
+          if (belongingsRes.status === 'fulfilled' && belongingsRes.value?.ok && Array.isArray(belongingsRes.value.data)) {
+            next.belongings = belongingsRes.value.data.filter((b) => !isMockUser({ id: b.studentId }))
+          }
+          if (requestsRes.status === 'fulfilled' && requestsRes.value?.ok && Array.isArray(requestsRes.value.data)) {
+            next.exitRequests = requestsRes.value.data.filter((r) => !isMockUser({ id: r.studentId }))
+          }
+          if (logsRes.status === 'fulfilled' && logsRes.value?.ok && Array.isArray(logsRes.value.data)) {
+            next.gateLogs = logsRes.value.data.filter((g) => !isMockUser({ id: g.studentId }))
+          }
+          return next
+        })
       } catch {
         // Fallback to local storage if server is unreachable
       }
     }
     syncFromBackend()
+    return () => {
+      isMounted = false
+    }
   }, [])
-
-  const currentUser = data.users.find((u) => u.id === sessionId && u.status === 'active' && u.role !== 'admin') ?? null
 
   const notify = useCallback((message, tone = 'success') => {
     const id = uid('toast')
@@ -115,13 +193,17 @@ export function StoreProvider({ children }) {
       async login(username, password, role) {
         const res = await authService.authenticate(data.users, username, password, role)
         if (!res.ok) return res
-        setSessionId(res.user.id)
+        if (res.user) {
+          setCurrentUser(res.user)
+          setSessionId(res.user.id)
+        }
         return { ok: true, user: res.user }
       },
 
       logout() {
         authService.logout()
         setSessionId(null)
+        setCurrentUser(null)
       },
 
       // Guard: record a student entering campus with belongings.
@@ -233,17 +315,57 @@ export function StoreProvider({ children }) {
         const validation = userService.validateAndPrepareUser(user, data.users)
         if (!validation.ok) return validation
 
-        const { cleaned } = validation
-        api.saveUser(cleaned).catch(() => {})
+        const { cleaned, isReplayed } = validation
+
+        // If this is a replay of an already processed submission in the local store
+        if (isReplayed) {
+          return { ok: true, user: cleaned, isReplayed: true }
+        }
+
+        // Fire API request with idempotency protection
+        api.saveUser(cleaned).then((res) => {
+          if (res?.data?.user) {
+            const backendUser = res.data.user
+            setData((prev) => ({
+              ...prev,
+              users: prev.users.map((u) =>
+                (cleaned.idempotencyKey && u.idempotencyKey === cleaned.idempotencyKey) || u.id === (cleaned.id || backendUser.id)
+                  ? { ...u, ...backendUser }
+                  : u,
+              ),
+            }))
+          }
+        }).catch(() => {})
 
         if (user.id) {
           setData((prev) => ({ ...prev, users: prev.users.map((u) => (u.id === user.id ? { ...u, ...cleaned } : u)) }))
+          if (currentUser?.id === user.id) {
+            setCurrentUser((prev) => ({ ...prev, ...cleaned }))
+          }
           if (!silent) notify('Account updated.')
           return { ok: true, user: cleaned }
         }
 
         const created = { ...cleaned, id: uid('u'), status: 'active', createdAt: now() }
-        setData((prev) => ({ ...prev, users: [...prev.users, created] }))
+        setData((prev) => {
+          const exists = prev.users.some(
+            (u) =>
+              (cleaned.idempotencyKey && u.idempotencyKey && u.idempotencyKey === cleaned.idempotencyKey) ||
+              u.id === created.id ||
+              u.username.toLowerCase() === created.username.toLowerCase(),
+          )
+          if (exists) {
+            return {
+              ...prev,
+              users: prev.users.map((u) =>
+                (cleaned.idempotencyKey && u.idempotencyKey === cleaned.idempotencyKey) || u.id === created.id
+                  ? { ...u, ...created }
+                  : u,
+              ),
+            }
+          }
+          return { ...prev, users: [...prev.users, created] }
+        })
         if (!silent) notify('Account created.')
         return { ok: true, user: created }
       },
@@ -282,9 +404,16 @@ export function StoreProvider({ children }) {
         notify(`${item.description || item.category} set to ${nextStatus}.`, 'info')
       },
 
+      resetData() {
+        setData(EMPTY_DATA)
+        writeStorage(DATA_KEY, JSON.stringify(EMPTY_DATA))
+        notify('Data cache cleared.', 'info')
+      },
+
       resetDemoData() {
-        setData(createMockData())
-        notify('Demo data restored.', 'info')
+        setData(EMPTY_DATA)
+        writeStorage(DATA_KEY, JSON.stringify(EMPTY_DATA))
+        notify('Data cache cleared.', 'info')
       },
     }
   }, [data, currentUser, notify])

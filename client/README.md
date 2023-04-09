@@ -1,6 +1,6 @@
 # Kotebe University of Education – Student Entry & Exit Management (Frontend)
 
-React + Vite frontend. There is **no backend yet**: the app runs entirely on mock data.
+React + Vite frontend connected to Express + PostgreSQL backend with JWT authentication.
 
 ## Run
 
@@ -9,16 +9,13 @@ npm install
 npm run dev
 ```
 
-## Demo accounts
+## Accounts
 
-| Role    | Username  | Password     |
-| ------- | --------- | ------------ |
-| Student | `student` | `student123` |
-| Guard   | `guard`   | `guard123`   |
-| Proctor | `proctor` | `proctor123` |
+| Role    | Full Name   | Username   | Password   |
+| ------- | ----------- | ---------- | ---------- |
+| Proctor | Amir Siraj  | `Amir3356` | `AEHJSS36` |
 
-Other students (`hana`, `yonas`, `meron`, `bereket`, `liya`, `natnael`) use `student123`.
-The second proctor is `almaz` and the second guard is `kebede` (passwords `proctor123` and `guard123`).
+Proctors provision student and guard accounts through the **Account Provision** dashboard.
 
 ## Workflow
 
@@ -28,21 +25,20 @@ The second proctor is `almaz` and the second guard is `kebede` (passwords `proct
 4. **Proctor → Account Provision**: manage and provision student, guard, and proctor accounts.
 5. **Guard → Verify Exit**: tick each item against the approved pass, then allow or deny exit.
 
-## Mock data
+## Backend Integration
 
-- `data/` holds the seed data in static JSON files: `users.json`, `belongings.json`, `exitRequests.json`, `gateLogs.json`.
-- `context/StoreProvider.jsx` is the in-memory "API". It seeds from `data/`, and
-  every change is saved to `localStorage`, so it carries across reloads and role switches.
-- Static mock data can also be imported directly from `data/*.json` into pages as needed.
-
-To connect a real backend later, replace the action functions in `StoreProvider.jsx` with
-API calls. The pages only use `useStore()` and don't need to change.
+- `api/` provides the HTTP client with automatic JWT bearer authorization.
+- `services/` contains domain business logic and validation schemas.
+- `models/` defines domain constants (`ROLES`, `DEPARTMENTS`, `ITEM_CATEGORIES`, `GATES`) and Zod schemas.
+- `context/StoreProvider.jsx` synchronizes data with the backend and manages local reactive UI state.
 
 ## Structure
 
 ```
 client/
-  data/          mock seed data in JSON files (users.json, etc.) and constants
+  api/           HTTP API client modules (auth, users, belongings, requests, gate)
+  models/        domain models, constants, and Zod validation schemas
+  services/      frontend business logic layer
   context/       store (state + actions) and the useStore hook
   components/    layout, shared UI, icons, request details
   pages/

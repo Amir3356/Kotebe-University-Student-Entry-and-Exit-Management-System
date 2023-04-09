@@ -15,6 +15,15 @@ export const userService = {
 
     const validData = parseResult.data
 
+    if (user.idempotencyKey) {
+      const existingKeyMatch = existingUsers.find(
+        (u) => u.idempotencyKey && u.idempotencyKey === user.idempotencyKey,
+      )
+      if (existingKeyMatch) {
+        return { ok: true, cleaned: existingKeyMatch, isReplayed: true }
+      }
+    }
+
     const taken = existingUsers.some(
       (u) => u.id !== user.id && u.username.toLowerCase() === validData.username.toLowerCase(),
     )

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useStore } from '../../context/store'
-import { ITEM_CATEGORIES } from '../../data'
+import { ITEM_CATEGORIES } from '../../models'
 import Icon from '../../components/Icon'
 import {
   Avatar,

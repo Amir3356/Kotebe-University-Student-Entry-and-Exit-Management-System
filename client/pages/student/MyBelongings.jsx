@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useStore } from '../../context/store'
-import { DEPARTMENTS, ITEM_CATEGORIES } from '../../data'
+import { DEPARTMENTS, ITEM_CATEGORIES } from '../../models'
 import Icon from '../../components/Icon'
 import {
   Avatar,
@@ -15,26 +15,12 @@ import {
 } from '../../components/ui'
 import { formatDateTime, matches, todayISODate, uid } from '../../utils/format'
 
-const STUDENT_STATUS_MAP = {
-  'u-stu-1': 'approve',
-  'u-stu-2': 'pending',
-  'u-stu-3': 'approve',
-  'u-stu-4': 'reject',
-  'u-stu-5': 'pending',
-  'u-stu-6': 'reject',
-  'u-stu-7': 'approve',
-  'u-stu-8': 'reject',
-}
-
-function resolveStatus(s, index) {
-  if (s.approvalStatus === 'approve' || s.approvalStatus === 'reject' || s.approvalStatus === 'pending') {
-    return s.approvalStatus
-  }
-  if (s.approvalStatus === 'approved') return 'approve'
-  if (s.approvalStatus === 'rejected') return 'reject'
-  if (STUDENT_STATUS_MAP[s.id]) return STUDENT_STATUS_MAP[s.id]
-  const pattern = ['approve', 'pending', 'reject']
-  return pattern[index % pattern.length]
+function resolveStatus(s) {
+  if (!s) return 'pending'
+  if (s.approvalStatus === 'approved' || s.approvalStatus === 'approve') return 'approve'
+  if (s.approvalStatus === 'rejected' || s.approvalStatus === 'reject') return 'reject'
+  if (s.approvalStatus === 'pending') return 'pending'
+  return s.approvalStatus || 'pending'
 }
 
 // Suggestions for the item name field; the student can still type anything.

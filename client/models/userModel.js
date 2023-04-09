@@ -47,6 +47,7 @@ export const userSchema = z.object({
   approvalStatus: z.string().optional(),
   gate: z.string().optional(),
   createdAt: z.string().optional(),
+  idempotencyKey: z.string().optional(),
 }).refine(
   (data) => data.role !== 'student' || (data.studentId && data.studentId.trim().length > 0),
   {

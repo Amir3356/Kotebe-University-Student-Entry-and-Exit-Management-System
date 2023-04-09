@@ -5,11 +5,19 @@ export const userApi = {
     const q = new URLSearchParams(params).toString()
     return request(`/users${q ? `?${q}` : ''}`)
   },
-  saveUser: (userData) =>
-    request(userData.id ? `/users/${userData.id}` : '/users', {
-      method: userData.id ? 'PUT' : 'POST',
-      body: JSON.stringify(userData),
-    }),
+  saveUser: (userData, options = {}) => {
+    const idempotencyKey = options.idempotencyKey || userData.idempotencyKey
+    const headers = {}
+    if (idempotencyKey) {
+      headers['Idempotency-Key'] = idempotencyKey
+    }
+    const { idempotencyKey: _, ...payload } = userData
+    return request(payload.id ? `/users/${payload.id}` : '/users', {
+      method: payload.id ? 'PUT' : 'POST',
+      body: JSON.stringify(payload),
+      headers,
+    })
+  },
   deleteUser: (id) => request(`/users/${id}`, { method: 'DELETE' }),
   toggleUserStatus: (id) => request(`/users/${id}/status`, { method: 'PATCH' }),
 }
