@@ -2,31 +2,64 @@ import { query, pool } from '../config/db.js'
 
 export const requestRepository = {
   async findAll({ studentId, status, search } = {}) {
-    let sql = `SELECT * FROM exit_requests WHERE 1=1`
+    let sql = `
+      SELECT r.*,
+             u.name as student_name,
+             u.student_id as student_code,
+             u.department,
+             u.phone,
+             u.address,
+             u.subcity,
+             u.woreda
+      FROM exit_requests r
+      LEFT JOIN users u ON r.student_id = u.id
+      WHERE 1=1
+    `
     const params = []
 
     if (studentId) {
       params.push(studentId)
-      sql += ` AND student_id = $${params.length}`
+      sql += ` AND (r.student_id = $${params.length} OR LOWER(u.student_id) = LOWER($${params.length}))`
     }
 
     if (status && status !== 'all') {
       params.push(status)
-      sql += ` AND status = $${params.length}`
+      sql += ` AND r.status = $${params.length}`
     }
 
     if (search) {
       params.push(`%${search.trim().toLowerCase()}%`)
-      sql += ` AND (LOWER(code) LIKE $${params.length} OR LOWER(destination) LIKE $${params.length} OR LOWER(reason) LIKE $${params.length})`
+      sql += ` AND (
+        LOWER(r.code) LIKE $${params.length} OR
+        LOWER(r.destination) LIKE $${params.length} OR
+        LOWER(r.reason) LIKE $${params.length} OR
+        LOWER(COALESCE(u.name, '')) LIKE $${params.length} OR
+        LOWER(COALESCE(u.student_id, '')) LIKE $${params.length} OR
+        LOWER(COALESCE(u.department, '')) LIKE $${params.length} OR
+        LOWER(COALESCE(u.phone, '')) LIKE $${params.length}
+      )`
     }
 
-    sql += ` ORDER BY created_at DESC`
+    sql += ` ORDER BY r.created_at DESC`
     const result = await query(sql, params)
     return result.rows
   },
 
   async findById(id) {
-    const result = await query(`SELECT * FROM exit_requests WHERE id = $1`, [id])
+    const result = await query(
+      `SELECT r.*,
+              u.name as student_name,
+              u.student_id as student_code,
+              u.department,
+              u.phone,
+              u.address,
+              u.subcity,
+              u.woreda
+       FROM exit_requests r
+       LEFT JOIN users u ON r.student_id = u.id
+       WHERE r.id = $1`,
+      [id],
+    )
     return result.rows[0] || null
   },
 

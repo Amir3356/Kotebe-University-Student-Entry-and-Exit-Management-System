@@ -422,14 +422,6 @@ export default function RecordEntry() {
               required
             />
           </Field>
-
-          <Field label="Brand" full>
-            <input
-              value={newItem.brand}
-              onChange={(e) => setNewItem({ ...newItem, brand: e.target.value })}
-              placeholder="e.g. HP, Lenovo, Apple"
-            />
-          </Field>
         </form>
       </Modal>
     </>

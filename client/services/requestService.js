@@ -6,7 +6,7 @@ export const requestService = {
   /**
    * Validates and constructs a new exit request model using Zod.
    */
-  buildExitRequest({ reason, destination, departureDate, returnDate, items, studentId, existingRequests = [] }) {
+  buildExitRequest({ reason, destination, departureDate, returnDate, items, studentId, student, existingRequests = [] }) {
     // Validate request payload using Zod schema
     const validation = exitRequestSchema.safeParse({
       reason,
@@ -15,6 +15,7 @@ export const requestService = {
       returnDate,
       items,
       studentId,
+      student,
     })
 
     if (!validation.success) {
@@ -29,6 +30,7 @@ export const requestService = {
       id: uid('r'),
       code,
       studentId,
+      student: student || null,
       reason: reason.trim(),
       destination: destination.trim(),
       departureDate,
@@ -48,12 +50,15 @@ export const requestService = {
     }
 
     requestApi.createExitRequest({
+      id: request.id,
+      code: request.code,
       reason,
       destination,
       departureDate,
       returnDate,
       items,
       studentId,
+      student,
     }).catch(() => {})
 
     return request

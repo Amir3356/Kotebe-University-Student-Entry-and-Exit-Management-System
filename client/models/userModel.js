@@ -31,30 +31,30 @@ export const DEPARTMENTS = [
 // --- Zod Client Schemas ---
 
 export const userSchema = z.object({
-  id: z.string().optional(),
+  id: z.string().optional().nullable(),
   name: z.string().trim().min(1, 'Full name is required.'),
   username: z.string().trim().min(1, 'Username is required.'),
   role: z.enum(['student', 'guard', 'proctor'], {
     errorMap: () => ({ message: 'Role must be student, guard, or proctor.' }),
   }),
+  password: z.string().optional().nullable(),
+  email: z.string().optional().nullable(),
   status: z.enum(['active', 'inactive']).default('active'),
-  department: z.string().optional(),
-  studentId: z.string().optional(),
-  phone: z.string().optional(),
-  address: z.string().optional(),
-  subcity: z.string().optional(),
-  woreda: z.string().optional(),
-  approvalStatus: z.string().optional(),
-  gate: z.string().optional(),
-  createdAt: z.string().optional(),
-  idempotencyKey: z.string().optional(),
-}).refine(
-  (data) => data.role !== 'student' || (data.studentId && data.studentId.trim().length > 0),
-  {
-    message: 'Student ID is required for student accounts.',
-    path: ['studentId'],
-  },
-)
+  department: z.string().optional().nullable(),
+  studentId: z.string().optional().nullable(),
+  phone: z.string().optional().nullable(),
+  address: z.string().optional().nullable(),
+  subcity: z.string().optional().nullable(),
+  woreda: z.string().optional().nullable(),
+  year: z.union([z.number(), z.string()]).optional().nullable(),
+  dorm: z.string().optional().nullable(),
+  gate: z.string().optional().nullable(),
+  assignedBlocks: z.string().optional().nullable(),
+  approvalStatus: z.string().optional().nullable(),
+  createdAt: z.string().optional().nullable(),
+  registeredAt: z.string().optional().nullable(),
+  idempotencyKey: z.string().optional().nullable(),
+})
 
 /**
  * Initial empty template representing a new user form state.
@@ -71,7 +71,7 @@ export const initialUserModel = {
   address: 'Kotebe, Addis Ababa',
   subcity: 'Yeka',
   woreda: '08',
-  approvalStatus: 'approve',
+  approvalStatus: 'pending',
   gate: 'Main Gate',
   createdAt: '',
 }
@@ -92,7 +92,7 @@ export function createUserModel(data = {}) {
     address: String(data.address || 'Kotebe, Addis Ababa').trim(),
     subcity: String(data.subcity || 'Yeka').trim(),
     woreda: String(data.woreda || '08').trim(),
-    approvalStatus: data.approvalStatus || 'approve',
+    approvalStatus: data.approvalStatus || 'pending',
     gate: data.gate || 'Main Gate',
     createdAt: data.createdAt || new Date().toISOString(),
   }
@@ -118,3 +118,52 @@ export function validateUserModel(user) {
   }
   return { valid: false, errors }
 }
+
+/**
+ * Resolves complete student details for an exit request,
+ * guaranteeing student name, actual student ID, department, phone number, address, subcity, and woreda.
+ */
+export function resolveStudent(request, users = []) {
+  if (!request) return null
+  const reqStudent = request.student || {}
+  const targetId = request.studentId || reqStudent.studentId || reqStudent.id
+
+  const user =
+    users.find(
+      (u) =>
+        (targetId && u.id === targetId) ||
+        (u.studentId && targetId && u.studentId.trim().toLowerCase() === String(targetId).trim().toLowerCase()) ||
+        (u.studentId && reqStudent.studentId && u.studentId.trim().toLowerCase() === String(reqStudent.studentId).trim().toLowerCase()) ||
+        (u.name && reqStudent.name && u.name.trim().toLowerCase() === String(reqStudent.name).trim().toLowerCase()),
+    ) || {}
+
+  const rawStudentCode =
+    reqStudent.studentId ||
+    user.studentId ||
+    (!String(targetId).startsWith('u-') && !String(targetId).startsWith('r-') ? targetId : null)
+
+  const name =
+    (reqStudent.name && reqStudent.name !== 'Unknown' && reqStudent.name.trim()) ||
+    (user.name && user.name !== 'Unknown' && user.name.trim()) ||
+    'Student'
+
+  const studentId = rawStudentCode || '—'
+  const department = reqStudent.department || user.department || '—'
+  const phone = reqStudent.phone || user.phone || '—'
+  const address = reqStudent.address || user.address || '—'
+  const subcity = reqStudent.subcity || user.subcity || '—'
+  const woreda = reqStudent.woreda || user.woreda || '—'
+
+  return {
+    ...user,
+    ...reqStudent,
+    name,
+    studentId,
+    department,
+    phone,
+    address,
+    subcity,
+    woreda,
+  }
+}
+

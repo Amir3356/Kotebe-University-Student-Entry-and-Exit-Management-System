@@ -56,8 +56,8 @@ const STATUS = {
   denied: { label: 'Exit denied', tone: 'danger' },
   active: { label: 'Active', tone: 'success' },
   inactive: { label: 'Inactive', tone: 'neutral' },
-  approve: { label: 'Approve', tone: 'success' },
-  reject: { label: 'Reject', tone: 'danger' },
+  approve: { label: 'Approved', tone: 'success' },
+  reject: { label: 'Rejected', tone: 'danger' },
 }
 
 export function StatusBadge({ status }) {

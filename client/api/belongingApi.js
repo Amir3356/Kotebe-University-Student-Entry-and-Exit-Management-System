@@ -1,14 +1,11 @@
 import { request } from './client'
 
 export const belongingApi = {
-  getBelongings: (params = {}) => {
-    const q = new URLSearchParams(params).toString()
-    return request(`/belongings${q ? `?${q}` : ''}`)
-  },
+  getBelongings: (params = {}) => request('/belongings', { params }),
   createBelonging: (item) =>
     request('/belongings', {
       method: 'POST',
-      body: JSON.stringify(item),
+      data: item,
     }),
   toggleBelongingStatus: (id) => request(`/belongings/${id}/status`, { method: 'PATCH' }),
   deleteBelonging: (id) => request(`/belongings/${id}`, { method: 'DELETE' }),

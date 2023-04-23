@@ -5,7 +5,7 @@ export const authApi = {
   login: (username, password, role) =>
     request('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ username, password, role }),
+      data: { username, password, ...(role ? { role } : {}) },
     }),
   getMe: () => request('/auth/me'),
 }

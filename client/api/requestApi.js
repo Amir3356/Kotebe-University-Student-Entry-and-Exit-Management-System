@@ -1,19 +1,16 @@
 import { request } from './client'
 
 export const requestApi = {
-  getExitRequests: (params = {}) => {
-    const q = new URLSearchParams(params).toString()
-    return request(`/exit-requests${q ? `?${q}` : ''}`)
-  },
+  getExitRequests: (params = {}) => request('/exit-requests', { params }),
   createExitRequest: (reqData) =>
     request('/exit-requests', {
       method: 'POST',
-      body: JSON.stringify(reqData),
+      data: reqData,
     }),
   reviewRequest: (id, decision, note, reviewedBy) =>
     request(`/exit-requests/${id}/review`, {
       method: 'PATCH',
-      body: JSON.stringify({ decision, note, reviewedBy }),
+      data: { decision, note, reviewedBy },
     }),
   cancelRequest: (id) => request(`/exit-requests/${id}/cancel`, { method: 'PATCH' }),
 }

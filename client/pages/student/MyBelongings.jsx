@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useStore } from '../../context/store'
-import { DEPARTMENTS, ITEM_CATEGORIES } from '../../models'
+import { ITEM_CATEGORIES } from '../../models'
 import Icon from '../../components/Icon'
 import {
   Avatar,
@@ -15,12 +15,18 @@ import {
 } from '../../components/ui'
 import { formatDateTime, matches, todayISODate, uid } from '../../utils/format'
 
-function resolveStatus(s) {
+function resolveStatus(s, request) {
+  if (request?.status) {
+    if (request.status === 'approved' || request.status === 'approve') return 'approved'
+    if (request.status === 'rejected' || request.status === 'reject') return 'rejected'
+    if (request.status === 'pending') return 'pending'
+    return request.status
+  }
   if (!s) return 'pending'
-  if (s.approvalStatus === 'approved' || s.approvalStatus === 'approve') return 'approve'
-  if (s.approvalStatus === 'rejected' || s.approvalStatus === 'reject') return 'reject'
+  if (s.approvalStatus === 'approved' || s.approvalStatus === 'approve') return 'approved'
+  if (s.approvalStatus === 'rejected' || s.approvalStatus === 'reject') return 'rejected'
   if (s.approvalStatus === 'pending') return 'pending'
-  return s.approvalStatus || 'pending'
+  return 'pending'
 }
 
 // Suggestions for the item name field; the student can still type anything.
@@ -35,7 +41,7 @@ function studentDetailsOf(user) {
   return {
     name: user?.name ?? '',
     studentId: user?.studentId ?? '',
-    department: user?.department || DEPARTMENTS[0] || 'Computer Science',
+    department: user?.department || '',
     phone: user?.phone ?? '',
     address: user?.address ?? '',
     subcity: user?.subcity ?? '',
@@ -46,44 +52,65 @@ function studentDetailsOf(user) {
 export default function MyBelongings() {
   const { currentUser, users, exitRequests, actions } = useStore()
   const [query, setQuery] = useState('')
-  const [departmentFilter, setDepartmentFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [addOpen, setAddOpen] = useState(false)
   const [studentDetails, setStudentDetails] = useState(() => studentDetailsOf(currentUser))
   const [leaveItems, setLeaveItems] = useState([blankItem()])
   const [reason, setReason] = useState('')
   const [addError, setAddError] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [editingStudent, setEditingStudent] = useState(null)
   const [deletingStudent, setDeletingStudent] = useState(null)
+  const [deletedIds, setDeletedIds] = useState(() => new Set())
 
-  const students = users.filter((u) => u.role === 'student')
+  const allStudents = users.filter((u) => u.role === 'student')
+  const students = (
+    currentUser?.role === 'student' &&
+    !allStudents.some((s) => s.id === currentUser.id) &&
+    !deletedIds.has(currentUser.id) &&
+    !deletedIds.has(currentUser.studentId)
+      ? [currentUser, ...allStudents]
+      : allStudents
+  ).filter((s) => !deletedIds.has(s.id) && !deletedIds.has(s.studentId))
+
   // Item, Quantity and Reason columns come from the student's most recent leave request.
-  const latestRequestOf = (studentId) =>
-    exitRequests
-      .filter((r) => r.studentId === studentId && r.status !== 'cancelled')
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]
-
-  // Offer every known department plus any department already present in the data.
-  const departments = [...new Set([...DEPARTMENTS, ...students.map((s) => s.department).filter(Boolean)])].sort()
-
-  const visible = students.filter((s, index) => {
-    const status = resolveStatus(s, index)
-    const request = latestRequestOf(s.id)
+  const latestRequestOf = (student) => {
+    if (!student) return null
     return (
-      (departmentFilter === 'all' || s.department === departmentFilter) &&
-      (statusFilter === 'all' || status === statusFilter) &&
+      exitRequests
+        .filter(
+          (r) =>
+            (r.studentId === student.id ||
+              (student.studentId && r.studentId?.toLowerCase() === student.studentId.toLowerCase()) ||
+              (currentUser?.id === student.id && r.studentId === currentUser.id)) &&
+            r.status !== 'cancelled',
+        )
+        .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))[0] || null
+    )
+  }
+
+  const visible = students.filter((s) => {
+    const request = latestRequestOf(s)
+    const status = resolveStatus(s, request)
+    const matchesStatus =
+      statusFilter === 'all' ||
+      status === statusFilter ||
+      ((statusFilter === 'approved' || statusFilter === 'approve') && (status === 'approved' || status === 'approve')) ||
+      ((statusFilter === 'rejected' || statusFilter === 'reject') && (status === 'rejected' || status === 'reject'))
+
+    return (
+      matchesStatus &&
       matches(
         query,
         s.name, s.studentId, s.department, s.phone, s.address, s.subcity, s.woreda, status,
-        request?.reason, ...(request?.items.map((i) => i.description) ?? []),
+        request?.reason, ...(request?.items?.map((i) => i.description) ?? []),
       )
     )
   })
-  const filtered = query.trim() !== '' || departmentFilter !== 'all' || statusFilter !== 'all'
+  const filtered = query.trim() !== '' || statusFilter !== 'all'
 
   function clearFilters() {
     setQuery('')
-    setDepartmentFilter('all')
     setStatusFilter('all')
   }
 
@@ -103,7 +130,7 @@ export default function MyBelongings() {
 
   // Saves the student's details, then sends the items and reason to the
   // proctor as a leave (exit) request for that student.
-  function handleAddItem(e) {
+  async function handleAddItem(e) {
     e.preventDefault()
     if (!studentDetails.name.trim()) return setAddError('Please enter Student Full Name.')
     if (!studentDetails.studentId.trim()) return setAddError('Please enter Student ID.')
@@ -112,38 +139,127 @@ export default function MyBelongings() {
     if (items.some((item) => !(Number(item.quantity) >= 1))) return setAddError('Quantity must be at least 1.')
     if (!reason.trim()) return setAddError('Please enter the reason for leaving.')
 
-    const details = Object.fromEntries(STUDENT_FIELDS.map((f) => [f, studentDetails[f].trim()]))
-    const existing = students.find((s) => s.studentId?.toLowerCase() === details.studentId.toLowerCase())
-    let saved
-    if (existing) {
-      saved = actions.saveUser({ ...existing, ...details }, { silent: true })
-    } else {
-      const username =
-        details.studentId.toLowerCase().replace(/[^a-z0-9]/g, '') || details.name.toLowerCase().replace(/\s+/g, '.')
-      saved = actions.saveUser(
-        { role: 'student', username, ...details, status: 'active', email: `${username}@student.kotebe.edu.et` },
-        { silent: true },
-      )
-    }
-    if (!saved.ok) return setAddError(saved.error)
+    setIsSubmitting(true)
+    setAddError('')
 
-    const today = todayISODate()
-    actions.createExitRequest({
-      studentId: saved.user.id,
-      reason,
-      destination: '',
-      departureDate: today,
-      returnDate: today,
-      items: items.map((item) => {
-        const name = item.name.trim()
-        return {
-          category: ITEM_CATEGORIES.find((c) => c.toLowerCase() === name.toLowerCase()) ?? 'Other',
-          description: name,
-          quantity: Number(item.quantity),
+    try {
+      const details = Object.fromEntries(STUDENT_FIELDS.map((f) => [f, studentDetails[f].trim()]))
+
+      let matchedUser = null
+      if (currentUser?.role === 'student') {
+        matchedUser = currentUser
+      } else {
+        matchedUser =
+          users.find(
+            (s) =>
+              (s.studentId && s.studentId.trim().toLowerCase() === details.studentId.toLowerCase()) ||
+              s.id === currentUser?.id,
+          ) || null
+      }
+
+      let targetStudentId = matchedUser?.id
+
+      if (matchedUser) {
+        const updateResult = await actions.saveUser(
+          {
+            ...matchedUser,
+            role: matchedUser.role || 'student',
+            approvalStatus: 'pending',
+            username:
+              matchedUser.username ||
+              details.studentId.toLowerCase().replace(/[^a-z0-9]/g, '') ||
+              details.name.toLowerCase().replace(/\s+/g, '.'),
+            ...details,
+          },
+          { silent: true },
+        )
+        if (!updateResult.ok) {
+          setAddError(updateResult.error)
+          return
         }
-      }),
-    })
-    setAddOpen(false)
+        targetStudentId = updateResult.user?.id || matchedUser.id
+      } else {
+        const baseUsername =
+          details.studentId.toLowerCase().replace(/[^a-z0-9]/g, '') ||
+          details.name.toLowerCase().replace(/\s+/g, '.') ||
+          uid('student')
+        let username = baseUsername
+        let count = 1
+        while (users.some((u) => u.username && u.username.toLowerCase() === username.toLowerCase())) {
+          username = `${baseUsername}${count++}`
+        }
+
+        const saveResult = await actions.saveUser(
+          {
+            role: 'student',
+            username,
+            password: 'password123',
+            ...details,
+            status: 'active',
+            approvalStatus: 'pending',
+            email: `${username}@student.kotebe.edu.et`,
+            registeredAt: new Date().toISOString(),
+          },
+          { silent: true },
+        )
+        if (!saveResult.ok) {
+          setAddError(saveResult.error)
+          return
+        }
+        targetStudentId = saveResult.user.id
+      }
+
+      const destination =
+        [details.address, details.subcity, details.woreda ? `Woreda ${details.woreda}` : '']
+          .filter(Boolean)
+          .join(', ')
+          .trim() ||
+        details.address ||
+        details.subcity ||
+        reason.trim() ||
+        'Home'
+
+      const today = todayISODate()
+      await actions.createExitRequest({
+        studentId: targetStudentId,
+        student: {
+          name: details.name,
+          studentId: details.studentId,
+          department: details.department,
+          phone: details.phone,
+          address: details.address,
+          subcity: details.subcity,
+          woreda: details.woreda,
+        },
+        reason: reason.trim(),
+        destination,
+        departureDate: today,
+        returnDate: today,
+        items: items.map((item) => {
+          const name = item.name.trim()
+          return {
+            category: ITEM_CATEGORIES.find((c) => c.toLowerCase() === name.toLowerCase()) ?? 'Other',
+            description: name,
+            quantity: Number(item.quantity) || 1,
+          }
+        }),
+      })
+
+      setDeletedIds((prev) => {
+        const next = new Set(prev)
+        if (targetStudentId) next.delete(targetStudentId)
+        if (details.studentId) next.delete(details.studentId)
+        return next
+      })
+      setAddError('')
+      setAddOpen(false)
+      setReason('')
+      setLeaveItems([blankItem()])
+    } catch (err) {
+      setAddError(err?.message || 'Failed to submit request.')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   function handleSaveEdit(e) {
@@ -161,8 +277,18 @@ export default function MyBelongings() {
 
   function handleDelete() {
     if (!deletingStudent) return
+    const idToDelete = deletingStudent.id
+    const studentIdCode = deletingStudent.studentId
+
+    setDeletedIds((prev) => {
+      const next = new Set(prev)
+      if (idToDelete) next.add(idToDelete)
+      if (studentIdCode) next.add(studentIdCode)
+      return next
+    })
+
     if (actions.deleteUser) {
-      actions.deleteUser(deletingStudent.id)
+      actions.deleteUser({ id: idToDelete, studentId: studentIdCode })
     }
     setDeletingStudent(null)
   }
@@ -187,15 +313,11 @@ export default function MyBelongings() {
           placeholder="Search by student name, ID, item, reason…"
         />
         <div className="toolbar-right">
-          <select value={departmentFilter} onChange={(e) => setDepartmentFilter(e.target.value)} aria-label="Filter by department">
-            <option value="all">All departments</option>
-            {departments.map((d) => <option key={d} value={d}>{d}</option>)}
-          </select>
           <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} aria-label="Filter by status">
             <option value="all">All statuses</option>
-            <option value="approve">Approve</option>
+            <option value="approved">Approved</option>
             <option value="pending">Pending</option>
-            <option value="reject">Reject</option>
+            <option value="rejected">Rejected</option>
           </select>
           {filtered && (
             <button type="button" className="btn btn-ghost" onClick={clearFilters}>
@@ -209,38 +331,42 @@ export default function MyBelongings() {
       </p>
 
       <Card flush>
-        {visible.length === 0 ? (
-          <EmptyState
-            icon="box"
-            title="No records found"
-            text={filtered ? 'No students match your search or filters.' : 'No student records yet.'}
-            action={filtered && <button type="button" className="btn btn-ghost" onClick={clearFilters}>Clear filters</button>}
-          />
-        ) : (
-          <div className="table-wrap">
-            <table className="belongings-table">
-              <thead>
+        <div className="table-wrap">
+          <table className="belongings-table">
+            <thead>
+              <tr>
+                <th>No</th>
+                <th>Student Name</th>
+                <th>Student ID</th>
+                <th>Department</th>
+                <th>Phone Number</th>
+                <th>Address</th>
+                <th>Subcity</th>
+                <th>Woreda</th>
+                <th>Item</th>
+                <th>Quantity</th>
+                <th>Reason for Leaving</th>
+                <th>Status</th>
+                <th>Date & Time Registered</th>
+                <th className="right">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visible.length === 0 ? (
                 <tr>
-                  <th>No</th>
-                  <th>Student Name</th>
-                  <th>Student ID</th>
-                  <th>Department</th>
-                  <th>Phone Number</th>
-                  <th>Address</th>
-                  <th>Subcity</th>
-                  <th>Woreda</th>
-                  <th>Item</th>
-                  <th>Quantity</th>
-                  <th>Reason for Leaving</th>
-                  <th>Status</th>
-                  <th>Date & Time Registered</th>
-                  <th className="right">Action</th>
+                  <td colSpan="14" style={{ padding: '36px 16px', textAlign: 'center' }}>
+                    <EmptyState
+                      icon="box"
+                      title="No records found"
+                      text={filtered ? 'No records match your search or filters.' : 'No belongings records yet.'}
+                      action={filtered && <button type="button" className="btn btn-ghost" onClick={clearFilters}>Clear filters</button>}
+                    />
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {visible.map((s, index) => {
-                  const status = resolveStatus(s, index)
-                  const request = latestRequestOf(s.id)
+              ) : (
+                visible.map((s, index) => {
+                  const request = latestRequestOf(s)
+                  const status = resolveStatus(s, request)
                   return (
                     <tr key={s.id}>
                       <td className="cell-num">{index + 1}</td>
@@ -262,16 +388,20 @@ export default function MyBelongings() {
                       <td>{s.subcity || '—'}</td>
                       <td>{s.woreda || '—'}</td>
                       <td>
-                        {request?.items.length ? (
+                        {request?.items?.length ? (
                           <ul className="cell-lines">
-                            {request.items.map((item) => <li key={item.id}>{item.description}</li>)}
+                            {request.items.map((item, idx) => (
+                              <li key={item.id || `${item.description}-${idx}`}>{item.description}</li>
+                            ))}
                           </ul>
                         ) : '—'}
                       </td>
                       <td>
-                        {request?.items.length ? (
+                        {request?.items?.length ? (
                           <ul className="cell-lines">
-                            {request.items.map((item) => <li key={item.id}>{item.quantity}</li>)}
+                            {request.items.map((item, idx) => (
+                              <li key={item.id || `${item.quantity}-${idx}`}>{item.quantity}</li>
+                            ))}
                           </ul>
                         ) : '—'}
                       </td>
@@ -302,11 +432,11 @@ export default function MyBelongings() {
                       </td>
                     </tr>
                   )
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </Card>
 
       {/* Add Item Modal */}
@@ -317,11 +447,11 @@ export default function MyBelongings() {
         size="lg"
         footer={
           <>
-            <button type="button" className="btn btn-ghost" onClick={() => setAddOpen(false)}>
+            <button type="button" className="btn btn-ghost" onClick={() => setAddOpen(false)} disabled={isSubmitting}>
               Cancel
             </button>
-            <button type="submit" form="add-item-form" className="btn btn-primary">
-              Submit
+            <button type="submit" form="add-item-form" className="btn btn-primary" disabled={isSubmitting}>
+              {isSubmitting ? 'Submitting...' : 'Submit'}
             </button>
           </>
         }
@@ -338,13 +468,11 @@ export default function MyBelongings() {
               <input value={studentDetails.studentId} onChange={setDetail('studentId')} placeholder="e.g. KU/0458/15" />
             </Field>
             <Field label="Department">
-              <select value={studentDetails.department} onChange={setDetail('department')}>
-                {DEPARTMENTS.map((d) => (
-                  <option key={d} value={d}>
-                    {d}
-                  </option>
-                ))}
-              </select>
+              <input
+                value={studentDetails.department}
+                onChange={setDetail('department')}
+                placeholder="e.g. Computer Science"
+              />
             </Field>
             <Field label="Phone Number">
               <input value={studentDetails.phone} onChange={setDetail('phone')} placeholder="e.g. +251 920 118 447" />
@@ -450,16 +578,11 @@ export default function MyBelongings() {
             </Field>
 
             <Field label="Department">
-              <select
+              <input
                 value={editingStudent.department || ''}
                 onChange={(e) => setEditingStudent({ ...editingStudent, department: e.target.value })}
-              >
-                {DEPARTMENTS.map((d) => (
-                  <option key={d} value={d}>
-                    {d}
-                  </option>
-                ))}
-              </select>
+                placeholder="e.g. Computer Science"
+              />
             </Field>
 
             <Field label="Phone Number">
@@ -492,11 +615,11 @@ export default function MyBelongings() {
 
             <Field label="Status">
               <select
-                value={editingStudent.approvalStatus || 'approve'}
+                value={editingStudent.approvalStatus || 'pending'}
                 onChange={(e) => setEditingStudent({ ...editingStudent, approvalStatus: e.target.value })}
               >
-                <option value="approve">Approve</option>
                 <option value="pending">Pending</option>
+                <option value="approve">Approve</option>
                 <option value="reject">Reject</option>
               </select>
             </Field>

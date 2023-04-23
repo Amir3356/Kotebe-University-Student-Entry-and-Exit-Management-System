@@ -7,16 +7,24 @@ import { formatDate, timeAgo } from '../../utils/format'
 
 export default function StudentDashboard() {
   const { currentUser, belongings, exitRequests } = useStore()
-  const mine = belongings.filter((b) => b.studentId === currentUser.id)
-  const requests = exitRequests.filter((r) => r.studentId === currentUser.id)
-  const activePass = requests.find((r) => r.status === 'approved')
-  const firstName = currentUser.name.split(' ')[0]
+  const mine = belongings.filter(
+    (b) =>
+      b.studentId === currentUser?.id ||
+      (currentUser?.studentId && b.studentId && b.studentId.toLowerCase() === currentUser.studentId.toLowerCase()),
+  )
+  const requests = exitRequests.filter(
+    (r) =>
+      r.studentId === currentUser?.id ||
+      (currentUser?.studentId && r.studentId && r.studentId.toLowerCase() === currentUser.studentId.toLowerCase()),
+  )
+  const activePass = requests.find((r) => r.status === 'approved' || r.status === 'approve')
+  const firstName = currentUser?.name?.split(' ')[0] || 'Student'
 
   return (
     <>
       <PageHeader
         title={`Selam, ${firstName}`}
-        subtitle={`${currentUser.studentId} · ${currentUser.department} · ${currentUser.dorm}`}
+        subtitle={`${currentUser?.studentId || ''} · ${currentUser?.department || ''} · ${currentUser?.dorm || ''}`}
         actions={
           <Link to="/student/requests/new" className="btn btn-primary">
             <Icon name="plus" size={16} /> New exit request
@@ -28,7 +36,7 @@ export default function StudentDashboard() {
         <StatCard label="Registered belongings" value={mine.length} icon="box" tone="primary" />
         <StatCard label="Active items" value={mine.filter((b) => b.status === 'active' || b.status === 'on_campus').length} icon="shield" tone="success" />
         <StatCard label="Pending requests" value={requests.filter((r) => r.status === 'pending').length} icon="clock" tone="warning" />
-        <StatCard label="Approved passes" value={requests.filter((r) => r.status === 'approved').length} icon="ticket" tone="info" />
+        <StatCard label="Approved passes" value={requests.filter((r) => r.status === 'approved' || r.status === 'approve').length} icon="ticket" tone="info" />
       </div>
 
       {activePass && (

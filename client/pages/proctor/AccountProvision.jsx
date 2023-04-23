@@ -10,7 +10,6 @@ const EMPTY = {
   name: '',
   username: '',
   password: '',
-  studentId: '',
 }
 
 export default function AccountProvision() {
@@ -38,7 +37,6 @@ export default function AccountProvision() {
     if (isSubmitting) return
 
     const required = ['name', 'username', 'password']
-    if (form.role === 'student') required.push('studentId')
     if (required.some((f) => !String(form[f] || '').trim())) {
       return setError('Please fill in all required fields.')
     }
@@ -46,7 +44,6 @@ export default function AccountProvision() {
     setIsSubmitting(true)
     setError('')
 
-    // Only keep the fields that belong to the chosen role.
     const base = {
       id: form.id,
       role: form.role,
@@ -55,13 +52,9 @@ export default function AccountProvision() {
       password: form.password,
       idempotencyKey: form.idempotencyKey,
     }
-    const extra =
-      form.role === 'student'
-        ? { studentId: (form.studentId || '').trim().toUpperCase() }
-        : {}
 
     try {
-      const result = await actions.saveUser({ ...base, ...extra })
+      const result = await actions.saveUser(base)
       if (!result.ok) {
         setIsSubmitting(false)
         return setError(result.error)
@@ -125,7 +118,7 @@ export default function AccountProvision() {
                       </div>
                     </td>
                     <td>
-                      <code>@{u.username}</code>
+                      <code>{u.username}</code>
                     </td>
                     <td><RoleBadge role={u.role} /></td>
                     <td><StatusBadge status={u.status} /></td>
@@ -164,17 +157,11 @@ export default function AccountProvision() {
         {form && (
           <form id="user-form" className="form-grid" onSubmit={save} noValidate>
             {error && <div className="field-full"><Callout tone="danger">{error}</Callout></div>}
-            <Field label="Role" full={form.role !== 'student'}>
+            <Field label="Role" full>
               <select value={form.role} onChange={set('role')}>
                 {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
               </select>
             </Field>
-
-            {form.role === 'student' && (
-              <Field label="Student ID *">
-                <input value={form.studentId} onChange={set('studentId')} placeholder="KU/XXXX/YY" required />
-              </Field>
-            )}
 
             <Field label="Full name *" full>
               <input value={form.name} onChange={set('name')} placeholder="Full name" required />

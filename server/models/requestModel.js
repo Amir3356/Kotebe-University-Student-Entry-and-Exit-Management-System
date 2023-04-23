@@ -16,12 +16,25 @@ export const requestItemSchema = z.object({
 
 export const exitRequestCreateSchema = z.object({
   id: z.string().optional(),
+  code: z.string().optional(),
   studentId: z.string({ required_error: 'Student ID is required' }).trim().min(1, 'Student ID cannot be empty'),
   reason: z.string({ required_error: 'Reason is required' }).trim().min(1, 'Reason cannot be empty'),
-  destination: z.string({ required_error: 'Destination is required' }).trim().min(1, 'Destination cannot be empty'),
+  destination: z.preprocess(
+    (val) => (typeof val === 'string' && val.trim() ? val.trim() : 'Home'),
+    z.string().min(1, 'Destination cannot be empty'),
+  ),
   departureDate: z.string({ required_error: 'Departure date is required' }).min(1, 'Departure date cannot be empty'),
   returnDate: z.string().optional().nullable(),
   items: z.array(requestItemSchema).min(1, 'At least one item must be included in the exit request'),
+  student: z.object({
+    name: z.string().optional().nullable(),
+    studentId: z.string().optional().nullable(),
+    department: z.string().optional().nullable(),
+    phone: z.string().optional().nullable(),
+    address: z.string().optional().nullable(),
+    subcity: z.string().optional().nullable(),
+    woreda: z.string().optional().nullable(),
+  }).optional().nullable(),
 })
 
 export const reviewRequestSchema = z.object({
@@ -60,6 +73,15 @@ export const ExitRequest = {
       verifiedBy: row.verified_by,
       exitedAt: row.exited_at,
       items,
+      student: row.student || {
+        name: row.student_name || null,
+        studentId: row.student_code || row.student_id || null,
+        department: row.department || null,
+        phone: row.phone || null,
+        address: row.address || null,
+        subcity: row.subcity || null,
+        woreda: row.woreda || null,
+      },
     }
   },
 

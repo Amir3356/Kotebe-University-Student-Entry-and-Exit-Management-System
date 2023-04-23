@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { StoreContext } from './store'
 import { uid } from '../utils/format'
 import { api } from '../api'
+import { getSocket } from '../api/socket'
 import {
   authService,
   userService,
@@ -10,7 +11,7 @@ import {
   gateService,
 } from '../services'
 
-const DATA_KEY = 'ku-seems:data:v5'
+const DATA_KEY = 'ku-seems:data:v7'
 const SESSION_KEY = 'ku-seems:session'
 const AUTH_USER_KEY = 'ku-seems:auth-user'
 
@@ -21,6 +22,8 @@ const LEGACY_KEYS = [
   'ku-seems:data:v2',
   'ku-seems:data:v3',
   'ku-seems:data:v4',
+  'ku-seems:data:v5',
+  'ku-seems:data:v6',
 ]
 
 try {
@@ -30,21 +33,16 @@ try {
 }
 
 const MOCK_USER_IDS = new Set([
-  'u-stu-1', 'u-stu-2', 'u-stu-3', 'u-stu-4', 'u-stu-5', 'u-stu-6', 'u-stu-7', 'u-stu-8',
   'u-guard-1', 'u-guard-2',
   'u-proctor-1', 'u-proctor-2',
 ])
 
 const MOCK_USERNAMES = new Set([
-  'student', 'hana', 'yonas', 'meron', 'bereket', 'liya', 'natnael', 'eden',
   'guard', 'kebede',
   'proctor', 'almaz',
 ])
 
-function isMockUser(u) {
-  if (!u) return false
-  if (MOCK_USER_IDS.has(u.id)) return true
-  if (u.username && MOCK_USERNAMES.has(u.username.toLowerCase())) return true
+function isMockUser() {
   return false
 }
 
@@ -88,7 +86,7 @@ function loadData() {
     try {
       const parsed = JSON.parse(raw)
       const validUsers = Array.isArray(parsed?.users)
-        ? parsed.users.filter((u) => u.role !== 'admin' && !isMockUser(u))
+        ? parsed.users.filter((u) => u.role !== 'admin')
         : []
 
       const hasAmir = validUsers.some(
@@ -98,15 +96,9 @@ function loadData() {
 
       return {
         users,
-        belongings: Array.isArray(parsed?.belongings)
-          ? parsed.belongings.filter((b) => !b.id?.startsWith('b-') && !MOCK_USER_IDS.has(b.studentId))
-          : [],
-        exitRequests: Array.isArray(parsed?.exitRequests)
-          ? parsed.exitRequests.filter((r) => !r.id?.startsWith('r-') && !MOCK_USER_IDS.has(r.studentId))
-          : [],
-        gateLogs: Array.isArray(parsed?.gateLogs)
-          ? parsed.gateLogs.filter((g) => !g.id?.startsWith('g-') && !MOCK_USER_IDS.has(g.studentId))
-          : [],
+        belongings: Array.isArray(parsed?.belongings) ? parsed.belongings : [],
+        exitRequests: Array.isArray(parsed?.exitRequests) ? parsed.exitRequests : [],
+        gateLogs: Array.isArray(parsed?.gateLogs) ? parsed.gateLogs : [],
       }
     } catch {
       // Storage corrupted, fall back to empty
@@ -134,6 +126,12 @@ export function StoreProvider({ children }) {
   })
   const [toasts, setToasts] = useState([])
 
+  const notify = useCallback((message, tone = 'success') => {
+    const id = uid('toast')
+    setToasts((list) => [...list, { id, message, tone }])
+    setTimeout(() => setToasts((list) => list.filter((t) => t.id !== id)), 3800)
+  }, [])
+
   useEffect(() => writeStorage(DATA_KEY, JSON.stringify(data)), [data])
   useEffect(() => writeStorage(SESSION_KEY, sessionId), [sessionId])
   useEffect(() => {
@@ -141,48 +139,320 @@ export function StoreProvider({ children }) {
     else writeStorage(AUTH_USER_KEY, null)
   }, [currentUser])
 
-  useEffect(() => {
-    let isMounted = true
-    async function syncFromBackend() {
-      try {
-        const [usersRes, belongingsRes, requestsRes, logsRes] = await Promise.allSettled([
-          api.getUsers(),
-          api.getBelongings(),
-          api.getExitRequests(),
-          api.getGateLogs(),
-        ])
-        if (!isMounted) return
+  const syncFromBackend = useCallback(async () => {
+    try {
+      const [usersRes, belongingsRes, requestsRes, logsRes] = await Promise.allSettled([
+        api.getUsers(),
+        api.getBelongings(),
+        api.getExitRequests(),
+        api.getGateLogs(),
+      ])
 
-        setData((prev) => {
-          const next = { ...prev }
-          if (usersRes.status === 'fulfilled' && usersRes.value?.ok && Array.isArray(usersRes.value.data)) {
-            next.users = usersRes.value.data.filter((u) => u.role !== 'admin' && !isMockUser(u))
+      setData((prev) => {
+        const next = { ...prev }
+        if (usersRes.status === 'fulfilled' && usersRes.value?.ok && Array.isArray(usersRes.value.data)) {
+          const backendUsers = usersRes.value.data.filter((u) => u.role !== 'admin')
+          const backendIds = new Set(backendUsers.map((u) => u.id))
+          const localOnly = (prev.users || []).filter((u) => !backendIds.has(u.id))
+          next.users = [...backendUsers, ...localOnly]
+          if (currentUser && !next.users.some((u) => u.id === currentUser.id)) {
+            next.users = [currentUser, ...next.users]
           }
-          if (belongingsRes.status === 'fulfilled' && belongingsRes.value?.ok && Array.isArray(belongingsRes.value.data)) {
-            next.belongings = belongingsRes.value.data.filter((b) => !isMockUser({ id: b.studentId }))
+        }
+        if (belongingsRes.status === 'fulfilled' && belongingsRes.value?.ok && Array.isArray(belongingsRes.value.data)) {
+          next.belongings = belongingsRes.value.data
+        }
+        if (requestsRes.status === 'fulfilled' && requestsRes.value?.ok && Array.isArray(requestsRes.value.data)) {
+          const backendReqs = requestsRes.value.data
+          const backendReqIds = new Set(backendReqs.map((r) => r.id))
+          const backendCodes = new Set(backendReqs.map((r) => r.code).filter(Boolean))
+          const localOnly = (prev.exitRequests || []).filter(
+            (r) => !backendReqIds.has(r.id) && (!r.code || !backendCodes.has(r.code)),
+          )
+          next.exitRequests = [...backendReqs, ...localOnly]
+        }
+        if (logsRes.status === 'fulfilled' && logsRes.value?.ok && Array.isArray(logsRes.value.data)) {
+          next.gateLogs = logsRes.value.data
+        }
+        return next
+      })
+    } catch {
+      // Fallback to local storage if server is unreachable
+    }
+  }, [currentUser])
+
+  // Sync initial state on mount, on window focus, and background fallback heartbeat
+  useEffect(() => {
+    syncFromBackend()
+    const interval = setInterval(syncFromBackend, 30000)
+    const onFocus = () => syncFromBackend()
+    window.addEventListener('focus', onFocus)
+
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('focus', onFocus)
+    }
+  }, [syncFromBackend])
+
+  // Real-time WebSocket event listeners
+  useEffect(() => {
+    const socket = getSocket()
+
+    function handleRequestReviewed(payload) {
+      if (!payload) return
+      const { requestId, decision, note, request, studentId } = payload
+      const targetReq = request || {}
+      const targetCode = targetReq.code
+      const targetStudent = studentId || targetReq.studentId
+
+      setData((prev) => {
+        const exists = prev.exitRequests.some(
+          (r) => r.id === requestId || (targetCode && r.code === targetCode),
+        )
+        const updatedRequests = exists
+          ? prev.exitRequests.map((r) =>
+              r.id === requestId || (targetCode && r.code === targetCode)
+                ? {
+                    ...r,
+                    ...targetReq,
+                    status: decision,
+                    reviewNote: note || targetReq.reviewNote || r.reviewNote,
+                    reviewedBy: targetReq.reviewedBy || r.reviewedBy,
+                    reviewedAt: targetReq.reviewedAt || r.reviewedAt || new Date().toISOString(),
+                    student: {
+                      ...(r.student || {}),
+                      ...(targetReq.student || {}),
+                    },
+                  }
+                : r,
+            )
+          : [
+              {
+                ...targetReq,
+                id: requestId,
+                status: decision,
+                reviewNote: note || targetReq.reviewNote || '',
+                reviewedAt: targetReq.reviewedAt || new Date().toISOString(),
+              },
+              ...prev.exitRequests,
+            ]
+
+        let nextUsers = prev.users.map((u) =>
+          u.id === targetStudent ||
+          (u.studentId && targetStudent && u.studentId.toLowerCase() === targetStudent.toLowerCase())
+            ? { ...u, approvalStatus: decision === 'approved' ? 'approved' : 'rejected' }
+            : u,
+        )
+
+        if (targetReq.student && targetReq.student.name) {
+          const s = targetReq.student
+          const studentExists = nextUsers.some(
+            (u) =>
+              u.id === targetStudent ||
+              (u.studentId && s.studentId && u.studentId.trim().toLowerCase() === s.studentId.trim().toLowerCase()),
+          )
+          if (!studentExists) {
+            nextUsers = [
+              ...nextUsers,
+              {
+                id: targetStudent,
+                role: 'student',
+                name: s.name,
+                studentId: s.studentId,
+                department: s.department,
+                phone: s.phone,
+                address: s.address,
+                subcity: s.subcity,
+                woreda: s.woreda,
+                status: 'active',
+                approvalStatus: decision === 'approved' ? 'approved' : 'rejected',
+              },
+            ]
           }
-          if (requestsRes.status === 'fulfilled' && requestsRes.value?.ok && Array.isArray(requestsRes.value.data)) {
-            next.exitRequests = requestsRes.value.data.filter((r) => !isMockUser({ id: r.studentId }))
-          }
-          if (logsRes.status === 'fulfilled' && logsRes.value?.ok && Array.isArray(logsRes.value.data)) {
-            next.gateLogs = logsRes.value.data.filter((g) => !isMockUser({ id: g.studentId }))
-          }
-          return next
-        })
-      } catch {
-        // Fallback to local storage if server is unreachable
+        }
+
+        return {
+          ...prev,
+          exitRequests: updatedRequests,
+          users: nextUsers,
+        }
+      })
+
+      if (
+        currentUser?.id === targetStudent ||
+        (currentUser?.studentId && targetStudent && currentUser.studentId.toLowerCase() === targetStudent.toLowerCase())
+      ) {
+        setCurrentUser((prev) => ({ ...prev, approvalStatus: decision === 'approved' ? 'approved' : 'rejected' }))
+        notify(
+          decision === 'approved'
+            ? 'Your leave request was approved by the Proctor!'
+            : 'Your leave request was rejected by the Proctor.',
+          decision === 'approved' ? 'success' : 'danger',
+        )
+      } else if (currentUser?.role === 'guard') {
+        notify(
+          `Leave request ${targetCode ? targetCode + ' ' : ''}was ${decision} by Proctor.`,
+          decision === 'approved' ? 'success' : 'info',
+        )
       }
     }
-    syncFromBackend()
-    return () => {
-      isMounted = false
-    }
-  }, [])
 
-  const notify = useCallback((message, tone = 'success') => {
-    const id = uid('toast')
-    setToasts((list) => [...list, { id, message, tone }])
-    setTimeout(() => setToasts((list) => list.filter((t) => t.id !== id)), 3800)
+    function handleRequestCreated(newReq) {
+      if (!newReq) return
+      setData((prev) => {
+        const exists = prev.exitRequests.some((r) => r.id === newReq.id || (r.code && r.code === newReq.code))
+        const nextRequests = exists
+          ? prev.exitRequests.map((r) => (r.id === newReq.id || r.code === newReq.code ? { ...r, ...newReq } : r))
+          : [newReq, ...prev.exitRequests]
+
+        let nextUsers = prev.users
+        if (newReq.student?.name || newReq.student?.studentId) {
+          const s = newReq.student
+          const studentExists = prev.users.some(
+            (u) =>
+              u.id === newReq.studentId ||
+              (u.studentId && s.studentId && u.studentId.trim().toLowerCase() === s.studentId.trim().toLowerCase()),
+          )
+          if (studentExists) {
+            nextUsers = prev.users.map((u) =>
+              u.id === newReq.studentId ||
+              (u.studentId && s.studentId && u.studentId.trim().toLowerCase() === s.studentId.trim().toLowerCase())
+                ? { ...u, ...s }
+                : u,
+            )
+          } else {
+            nextUsers = [
+              ...prev.users,
+              {
+                id: newReq.studentId,
+                role: 'student',
+                name: s.name || 'Student',
+                studentId: s.studentId,
+                department: s.department,
+                phone: s.phone,
+                address: s.address,
+                subcity: s.subcity,
+                woreda: s.woreda,
+                status: 'active',
+                approvalStatus: 'pending',
+              },
+            ]
+          }
+        }
+
+        return {
+          ...prev,
+          exitRequests: nextRequests,
+          users: nextUsers,
+        }
+      })
+
+      if (currentUser?.role === 'proctor') {
+        notify(`New student leave request: ${newReq.code || ''}`, 'info')
+      } else if (currentUser?.role === 'guard') {
+        notify(`New leave request pending audit: ${newReq.code || ''}`, 'info')
+      }
+    }
+
+    function handleRequestCancelled(payload) {
+      if (!payload?.requestId) return
+      setData((prev) => ({
+        ...prev,
+        exitRequests: prev.exitRequests.map((r) => (r.id === payload.requestId ? { ...r, status: 'cancelled' } : r)),
+      }))
+    }
+
+    function handleUserUpdated(updatedUser) {
+      if (!updatedUser) return
+      setData((prev) => {
+        const exists = prev.users.some(
+          (u) =>
+            u.id === updatedUser.id ||
+            (u.studentId && updatedUser.studentId && u.studentId.trim().toLowerCase() === updatedUser.studentId.trim().toLowerCase()) ||
+            (u.username && updatedUser.username && u.username.toLowerCase() === updatedUser.username.toLowerCase()),
+        )
+        return {
+          ...prev,
+          users: exists
+            ? prev.users.map((u) =>
+                u.id === updatedUser.id ||
+                (u.studentId && updatedUser.studentId && u.studentId.trim().toLowerCase() === updatedUser.studentId.trim().toLowerCase()) ||
+                (u.username && updatedUser.username && u.username.toLowerCase() === updatedUser.username.toLowerCase())
+                  ? { ...u, ...updatedUser }
+                  : u,
+              )
+            : [...prev.users, updatedUser],
+        }
+      })
+      if (
+        currentUser?.id === updatedUser.id ||
+        (currentUser?.username && updatedUser.username && currentUser.username.toLowerCase() === updatedUser.username.toLowerCase())
+      ) {
+        setCurrentUser((prev) => ({ ...prev, ...updatedUser }))
+      }
+    }
+
+    function handleUserDeleted(payload) {
+      if (!payload?.id) return
+      setData((prev) => ({
+        ...prev,
+        users: prev.users.filter((u) => u.id !== payload.id),
+      }))
+    }
+
+    function handleGateActivity(log) {
+      if (!log) return
+      setData((prev) => ({
+        ...prev,
+        gateLogs: [log, ...prev.gateLogs.filter((l) => l.id !== log.id)],
+        exitRequests:
+          log.requestId && log.type === 'exit'
+            ? prev.exitRequests.map((r) =>
+                r.id === log.requestId || r.code === log.requestId
+                  ? { ...r, status: 'completed', exitedAt: log.timestamp, verifiedBy: log.guardId }
+                  : r,
+              )
+            : prev.exitRequests,
+      }))
+    }
+
+    socket.on('request:reviewed', handleRequestReviewed)
+    socket.on('request:created', handleRequestCreated)
+    socket.on('request:cancelled', handleRequestCancelled)
+    socket.on('user:updated', handleUserUpdated)
+    socket.on('user:deleted', handleUserDeleted)
+    socket.on('gate:activity', handleGateActivity)
+
+    return () => {
+      socket.off('request:reviewed', handleRequestReviewed)
+      socket.off('request:created', handleRequestCreated)
+      socket.off('request:cancelled', handleRequestCancelled)
+      socket.off('user:updated', handleUserUpdated)
+      socket.off('user:deleted', handleUserDeleted)
+      socket.off('gate:activity', handleGateActivity)
+    }
+  }, [currentUser, notify])
+
+  // Cross-tab storage synchronization
+  useEffect(() => {
+    function handleStorage(e) {
+      if (e.key === DATA_KEY && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue)
+          if (parsed && typeof parsed === 'object') {
+            setData((prev) => ({
+              ...prev,
+              users: Array.isArray(parsed.users) ? parsed.users : prev.users,
+              belongings: Array.isArray(parsed.belongings) ? parsed.belongings : prev.belongings,
+              exitRequests: Array.isArray(parsed.exitRequests) ? parsed.exitRequests : prev.exitRequests,
+              gateLogs: Array.isArray(parsed.gateLogs) ? parsed.gateLogs : prev.gateLogs,
+            }))
+          }
+        } catch {}
+      }
+    }
+    window.addEventListener('storage', handleStorage)
+    return () => window.removeEventListener('storage', handleStorage)
   }, [])
 
   const actions = useMemo(() => {
@@ -196,6 +466,7 @@ export function StoreProvider({ children }) {
         if (res.user) {
           setCurrentUser(res.user)
           setSessionId(res.user.id)
+          syncFromBackend()
         }
         return { ok: true, user: res.user }
       },
@@ -231,8 +502,19 @@ export function StoreProvider({ children }) {
       },
 
       // Student: ask permission to leave with a list of belongings.
-      createExitRequest({ reason, destination, departureDate, returnDate, items, studentId }) {
+      createExitRequest({ reason, destination, departureDate, returnDate, items, studentId, student }) {
         const targetStudentId = studentId ?? currentUser?.id
+        const studentInfo =
+          student ||
+          (targetStudentId
+            ? data.users.find(
+                (u) =>
+                  u.id === targetStudentId ||
+                  (u.studentId && u.studentId.trim().toLowerCase() === String(targetStudentId).trim().toLowerCase()),
+              )
+            : null) ||
+          (currentUser?.role === 'student' ? currentUser : null)
+
         const request = requestService.buildExitRequest({
           reason,
           destination,
@@ -240,6 +522,17 @@ export function StoreProvider({ children }) {
           returnDate,
           items,
           studentId: targetStudentId,
+          student: studentInfo
+            ? {
+                name: studentInfo.name,
+                studentId: studentInfo.studentId,
+                department: studentInfo.department,
+                phone: studentInfo.phone,
+                address: studentInfo.address,
+                subcity: studentInfo.subcity,
+                woreda: studentInfo.woreda,
+              }
+            : null,
           existingRequests: data.exitRequests,
         })
 
@@ -261,15 +554,37 @@ export function StoreProvider({ children }) {
 
       // Proctor: approve or reject a departure request.
       reviewRequest(requestId, decision, note) {
+        const targetRequest = data.exitRequests.find((r) => r.id === requestId)
+        if (!targetRequest || targetRequest.status !== 'pending') return
+
         requestService.reviewRequest(requestId, decision, note, currentUser?.id)
+        const targetStudentId = targetRequest?.studentId
+
         setData((prev) => ({
           ...prev,
           exitRequests: prev.exitRequests.map((r) =>
-            r.id === requestId
+            r.id === requestId ||
+            (targetRequest?.code && r.code === targetRequest.code) ||
+            (targetStudentId &&
+              (r.studentId === targetStudentId ||
+                (targetRequest.studentId && r.studentId === targetRequest.studentId)) &&
+              r.status === 'pending')
               ? { ...r, status: decision, reviewedBy: currentUser?.id, reviewedAt: now(), reviewNote: note.trim() }
               : r,
           ),
+          users: prev.users.map((u) =>
+            u.id === targetStudentId ||
+            (u.studentId && targetStudentId && u.studentId.toLowerCase() === targetStudentId.toLowerCase())
+              ? { ...u, approvalStatus: decision === 'approved' ? 'approved' : 'rejected' }
+              : u,
+          ),
         }))
+        if (
+          currentUser?.id === targetStudentId ||
+          (currentUser?.studentId && targetStudentId && currentUser.studentId.toLowerCase() === targetStudentId.toLowerCase())
+        ) {
+          setCurrentUser((prev) => ({ ...prev, approvalStatus: decision === 'approved' ? 'approved' : 'rejected' }))
+        }
         notify(decision === 'approved' ? 'Request approved.' : 'Request rejected.', decision === 'approved' ? 'success' : 'info')
       },
 
@@ -310,64 +625,76 @@ export function StoreProvider({ children }) {
         notify('Exit denied and logged.', 'danger')
       },
 
-      // Proctor: create or update an account.
-      saveUser(user, { silent = false } = {}) {
+      // Proctor/Student: create or update an account.
+      async saveUser(user, { silent = false } = {}) {
         const validation = userService.validateAndPrepareUser(user, data.users)
         if (!validation.ok) return validation
 
-        const { cleaned, isReplayed } = validation
+        const id = user.id || uid('u')
+        const cleaned = { ...validation.cleaned, id }
 
         // If this is a replay of an already processed submission in the local store
-        if (isReplayed) {
+        if (validation.isReplayed) {
           return { ok: true, user: cleaned, isReplayed: true }
         }
 
-        // Fire API request with idempotency protection
-        api.saveUser(cleaned).then((res) => {
+        const nowIso = now()
+        const userWithMeta = {
+          ...cleaned,
+          status: cleaned.status || 'active',
+          createdAt: cleaned.createdAt || nowIso,
+        }
+
+        setData((prev) => {
+          const exists = prev.users.some(
+            (u) =>
+              u.id === id ||
+              (cleaned.idempotencyKey && u.idempotencyKey && u.idempotencyKey === cleaned.idempotencyKey) ||
+              (cleaned.username && u.username && u.username.toLowerCase() === cleaned.username.toLowerCase()) ||
+              (cleaned.studentId && u.studentId && u.studentId.trim().toLowerCase() === cleaned.studentId.trim().toLowerCase()),
+          )
+          return {
+            ...prev,
+            users: exists
+              ? prev.users.map((u) =>
+                  u.id === id ||
+                  (cleaned.username && u.username && u.username.toLowerCase() === cleaned.username.toLowerCase()) ||
+                  (cleaned.studentId && u.studentId && u.studentId.trim().toLowerCase() === cleaned.studentId.trim().toLowerCase())
+                    ? { ...u, ...userWithMeta }
+                    : u,
+                )
+              : [...prev.users, userWithMeta],
+          }
+        })
+
+        if (
+          currentUser?.id === id ||
+          (currentUser?.username && cleaned.username && currentUser.username.toLowerCase() === cleaned.username.toLowerCase())
+        ) {
+          setCurrentUser((prev) => ({ ...prev, ...userWithMeta }))
+        }
+
+        if (!silent) notify(user.id ? 'Account updated.' : 'Account created.')
+
+        try {
+          const res = await api.saveUser(cleaned)
           if (res?.data?.user) {
             const backendUser = res.data.user
             setData((prev) => ({
               ...prev,
               users: prev.users.map((u) =>
-                (cleaned.idempotencyKey && u.idempotencyKey === cleaned.idempotencyKey) || u.id === (cleaned.id || backendUser.id)
-                  ? { ...u, ...backendUser }
+                u.id === id || u.id === backendUser.id
+                  ? { ...u, ...backendUser, password: u.password || cleaned.password }
                   : u,
               ),
             }))
+            return { ok: true, user: backendUser }
           }
-        }).catch(() => {})
-
-        if (user.id) {
-          setData((prev) => ({ ...prev, users: prev.users.map((u) => (u.id === user.id ? { ...u, ...cleaned } : u)) }))
-          if (currentUser?.id === user.id) {
-            setCurrentUser((prev) => ({ ...prev, ...cleaned }))
-          }
-          if (!silent) notify('Account updated.')
-          return { ok: true, user: cleaned }
+        } catch {
+          // Keep optimistic/local update if backend unreachable
         }
 
-        const created = { ...cleaned, id: uid('u'), status: 'active', createdAt: now() }
-        setData((prev) => {
-          const exists = prev.users.some(
-            (u) =>
-              (cleaned.idempotencyKey && u.idempotencyKey && u.idempotencyKey === cleaned.idempotencyKey) ||
-              u.id === created.id ||
-              u.username.toLowerCase() === created.username.toLowerCase(),
-          )
-          if (exists) {
-            return {
-              ...prev,
-              users: prev.users.map((u) =>
-                (cleaned.idempotencyKey && u.idempotencyKey === cleaned.idempotencyKey) || u.id === created.id
-                  ? { ...u, ...created }
-                  : u,
-              ),
-            }
-          }
-          return { ...prev, users: [...prev.users, created] }
-        })
-        if (!silent) notify('Account created.')
-        return { ok: true, user: created }
+        return { ok: true, user: userWithMeta }
       },
 
       toggleUserStatus(userId) {
@@ -379,10 +706,27 @@ export function StoreProvider({ children }) {
         notify(`${user.name} ${nextStatus === 'active' ? 'activated' : 'deactivated'}.`, 'info')
       },
 
-      deleteUser(userId) {
-        userService.deleteUser(userId)
-        setData((prev) => ({ ...prev, users: prev.users.filter((u) => u.id !== userId) }))
-        notify('Account deleted.', 'info')
+      deleteUser(target) {
+        const id = typeof target === 'object' && target !== null ? target.id : target
+        const studentId = typeof target === 'object' && target !== null ? target.studentId : null
+
+        if (id) userService.deleteUser(id)
+
+        setData((prev) => ({
+          ...prev,
+          users: prev.users.filter((u) => u.id !== id && (!studentId || u.studentId !== studentId)),
+          exitRequests: prev.exitRequests.filter(
+            (r) => r.studentId !== id && (!studentId || r.studentId?.toLowerCase() !== studentId?.toLowerCase()),
+          ),
+          belongings: prev.belongings.filter(
+            (b) => b.studentId !== id && (!studentId || b.studentId?.toLowerCase() !== studentId?.toLowerCase()),
+          ),
+          gateLogs: prev.gateLogs.filter(
+            (g) => g.studentId !== id && (!studentId || g.studentId?.toLowerCase() !== studentId?.toLowerCase()),
+          ),
+        }))
+
+        notify('Record deleted.', 'info')
       },
 
       deleteBelonging(belongingId) {

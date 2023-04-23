@@ -11,16 +11,26 @@ export default function MyRequests() {
   const [tab, setTab] = useState('all')
   const [openId, setOpenId] = useState(null)
 
-  const mine = exitRequests.filter((r) => r.studentId === currentUser.id)
-  const visible = tab === 'all' ? mine : mine.filter((r) => r.status === tab)
+  const mine = exitRequests.filter(
+    (r) =>
+      r.studentId === currentUser?.id ||
+      (currentUser?.studentId && r.studentId && r.studentId.toLowerCase() === currentUser.studentId.toLowerCase()),
+  )
+  const isStatusMatch = (r, tabValue) => {
+    if (tabValue === 'all') return true
+    if (tabValue === 'approved') return r.status === 'approved' || r.status === 'approve'
+    if (tabValue === 'rejected') return r.status === 'rejected' || r.status === 'reject'
+    return r.status === tabValue
+  }
+  const visible = tab === 'all' ? mine : mine.filter((r) => isStatusMatch(r, tab))
   const open = mine.find((r) => r.id === openId)
 
   const tabs = [
     { value: 'all', label: 'All', count: mine.length },
     { value: 'pending', label: 'Pending', count: mine.filter((r) => r.status === 'pending').length },
-    { value: 'approved', label: 'Approved', count: mine.filter((r) => r.status === 'approved').length },
+    { value: 'approved', label: 'Approved', count: mine.filter((r) => r.status === 'approved' || r.status === 'approve').length },
     { value: 'completed', label: 'Exited', count: mine.filter((r) => r.status === 'completed').length },
-    { value: 'rejected', label: 'Rejected', count: mine.filter((r) => r.status === 'rejected').length },
+    { value: 'rejected', label: 'Rejected', count: mine.filter((r) => r.status === 'rejected' || r.status === 'reject').length },
   ]
 
   return (
@@ -86,7 +96,7 @@ export default function MyRequests() {
       >
         {open && (
           <>
-            {open.status === 'approved' && (
+            {(open.status === 'approved' || open.status === 'approve') && (
               <div className="callout callout-success mb">
                 <Icon name="ticket" size={18} />
                 <div>

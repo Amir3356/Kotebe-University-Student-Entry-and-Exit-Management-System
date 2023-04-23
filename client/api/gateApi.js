@@ -1,24 +1,21 @@
 import { request } from './client'
 
 export const gateApi = {
-  getGateLogs: (params = {}) => {
-    const q = new URLSearchParams(params).toString()
-    return request(`/gate/logs${q ? `?${q}` : ''}`)
-  },
+  getGateLogs: (params = {}) => request('/gate/logs', { params }),
   recordEntry: (entryData) =>
     request('/gate/entry', {
       method: 'POST',
-      body: JSON.stringify(entryData),
+      data: entryData,
     }),
   allowExit: (exitData) =>
     request('/gate/exit', {
       method: 'POST',
-      body: JSON.stringify(exitData),
+      data: exitData,
     }),
   denyExit: (denyData) =>
     request('/gate/deny', {
       method: 'POST',
-      body: JSON.stringify(denyData),
+      data: denyData,
     }),
 }
 

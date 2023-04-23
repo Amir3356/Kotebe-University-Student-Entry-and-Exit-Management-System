@@ -13,7 +13,7 @@ function navFor(role, counts) {
     case 'guard':
       return [
         { to: '/guard/belongings', label: 'Student Belongings', icon: 'box' },
-        { to: '/guard/audit', label: 'Audit', icon: 'clipboard' },
+        { to: '/guard/audit', label: 'Audit', icon: 'clipboard', badge: counts.pending },
       ]
     case 'proctor':
       return [

@@ -33,14 +33,27 @@ export const userService = {
     }
 
     if (id) {
-      const updated = await userRepository.update(id, {
-        ...data,
-        name: name.trim(),
-        username: cleanUsername,
-        studentId: studentId ? studentId.trim().toUpperCase() : null,
-      })
-      if (!updated) throw new Error('User not found.')
-      return formatUser(updated)
+      const existing = await userRepository.findById(id)
+      if (existing) {
+        const updated = await userRepository.update(id, {
+          ...data,
+          name: name.trim(),
+          username: cleanUsername,
+          studentId: studentId ? studentId.trim().toUpperCase() : null,
+        })
+        return formatUser(updated)
+      } else {
+        const created = await userRepository.create({
+          role: role || 'student',
+          ...data,
+          id,
+          name: name.trim(),
+          username: cleanUsername,
+          password: (password || 'password123').trim(),
+          studentId: studentId ? studentId.trim().toUpperCase() : null,
+        })
+        return formatUser(created)
+      }
     } else {
       const newId = `u-${role || 'stu'}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
       const created = await userRepository.create({
@@ -65,8 +78,7 @@ export const userService = {
   },
 
   async deleteUser(id) {
-    const deleted = await userRepository.delete(id)
-    if (!deleted) throw new Error('User not found.')
+    await userRepository.delete(id)
     return { ok: true }
   },
 }

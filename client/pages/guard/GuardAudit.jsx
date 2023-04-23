@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useStore } from '../../context/store'
 import Icon from '../../components/Icon'
 import RequestDetails from '../../components/RequestDetails'
@@ -13,6 +14,7 @@ import {
   StatusBadge,
   Tabs,
 } from '../../components/ui'
+import { resolveStudent } from '../../models/userModel'
 import { formatDateTime, matches } from '../../utils/format'
 
 export default function GuardAudit() {
@@ -21,8 +23,29 @@ export default function GuardAudit() {
   const [query, setQuery] = useState('')
   const [viewingRequest, setViewingRequest] = useState(null)
 
-  const studentOf = (r) => users.find((u) => u.id === r.studentId)
-  const proctorOf = (r) => users.find((u) => u.id === r.reviewedBy)
+  const studentOf = (r) => resolveStudent(r, users)
+
+  const norm = (s) => (s || '').trim().toLowerCase()
+  const isApproved = (r) => ['approved', 'approve', 'completed'].includes(norm(r.status))
+  const isPending = (r) => norm(r.status) === 'pending'
+  const isRejected = (r) => ['rejected', 'reject', 'denied'].includes(norm(r.status))
+
+  const proctorOf = (r) => {
+    if (r.reviewer) return r.reviewer
+    const found = users.find(
+      (u) =>
+        u.id === r.reviewedBy ||
+        (u.username && r.reviewedBy && u.username.toLowerCase() === r.reviewedBy.toLowerCase()) ||
+        (u.name && r.reviewedBy && u.name.toLowerCase() === r.reviewedBy.toLowerCase()),
+    )
+    if (found) return found
+    if (r.reviewedBy) return { name: r.reviewedBy }
+    return null
+  }
+
+  const activeViewingRequest = viewingRequest
+    ? exitRequests.find((r) => r.id === viewingRequest.id || (viewingRequest.code && r.code === viewingRequest.code)) || viewingRequest
+    : null
 
   const searched = exitRequests.filter((r) => {
     const s = studentOf(r)
@@ -38,23 +61,36 @@ export default function GuardAudit() {
       s?.studentId,
       s?.department,
       s?.phone,
+      s?.address,
+      s?.subcity,
+      s?.woreda,
       reviewer?.name,
+      r.reviewedBy,
+      ...(r.items?.map((i) => i.description) ?? []),
     )
   })
 
-  const visible = tab === 'all' ? searched : searched.filter((r) => r.status === tab)
+  const visible =
+    tab === 'all'
+      ? searched
+      : tab === 'approved'
+      ? searched.filter(isApproved)
+      : tab === 'pending'
+      ? searched.filter(isPending)
+      : tab === 'rejected'
+      ? searched.filter(isRejected)
+      : searched.filter((r) => norm(r.status) === norm(tab))
 
-  const count = (status) => searched.filter((r) => r.status === status).length
   const tabs = [
     { value: 'all', label: 'All', count: searched.length },
-    { value: 'approved', label: 'Approved', count: count('approved') },
-    { value: 'pending', label: 'Pending', count: count('pending') },
-    { value: 'rejected', label: 'Rejected', count: count('rejected') },
+    { value: 'approved', label: 'Approved', count: searched.filter(isApproved).length },
+    { value: 'pending', label: 'Pending', count: searched.filter(isPending).length },
+    { value: 'rejected', label: 'Rejected', count: searched.filter(isRejected).length },
   ]
 
-  const approvedCount = exitRequests.filter((r) => r.status === 'approved' || r.status === 'completed').length
-  const pendingCount = exitRequests.filter((r) => r.status === 'pending').length
-  const rejectedCount = exitRequests.filter((r) => r.status === 'rejected').length
+  const approvedCount = exitRequests.filter(isApproved).length
+  const pendingCount = exitRequests.filter(isPending).length
+  const rejectedCount = exitRequests.filter(isRejected).length
 
   return (
     <>
@@ -105,7 +141,7 @@ export default function GuardAudit() {
           />
         ) : (
           <div className="table-wrap">
-            <table className="belongings-table">
+            <table className="belongings-table table-click">
               <thead>
                 <tr>
                   <th>No</th>
@@ -125,7 +161,13 @@ export default function GuardAudit() {
                   const s = studentOf(r)
                   const reviewer = proctorOf(r)
                   return (
-                    <tr key={r.id}>
+                    <tr
+                      key={r.id}
+                      onClick={() => setViewingRequest(r)}
+                      onKeyDown={(e) => e.key === 'Enter' && setViewingRequest(r)}
+                      tabIndex={0}
+                      title="Click to view full leave request audit details"
+                    >
                       <td className="cell-num">{index + 1}</td>
                       <td>
                         <div className="cell-item">
@@ -138,7 +180,7 @@ export default function GuardAudit() {
                       </td>
                       <td>{s?.department || '—'}</td>
                       <td className="nowrap">{s?.phone || '—'}</td>
-                      <td>{r.destination || '—'}</td>
+                      <td>{r.destination || 'Home'}</td>
                       <td className="nowrap">{formatDateTime(r.createdAt || s?.createdAt)}</td>
                       <td>
                         <StatusBadge status={r.status} />
@@ -149,20 +191,41 @@ export default function GuardAudit() {
                             <span className="row-title">{reviewer.name}</span>
                             {r.reviewNote && <div className="muted small">{r.reviewNote}</div>}
                           </div>
+                        ) : r.reviewedBy ? (
+                          <div>
+                            <span className="row-title">{r.reviewedBy}</span>
+                            {r.reviewNote && <div className="muted small">{r.reviewNote}</div>}
+                          </div>
+                        ) : r.status !== 'pending' ? (
+                          <div>
+                            <span className="row-title">Proctor Office</span>
+                            {r.reviewNote && <div className="muted small">{r.reviewNote}</div>}
+                          </div>
                         ) : (
                           <span className="muted">Awaiting Review</span>
                         )}
                       </td>
                       <td className="right nowrap">
-                        <button
-                          type="button"
-                          className="icon-btn"
-                          onClick={() => setViewingRequest(r)}
-                          aria-label={`View audit details for ${r.code}`}
-                          title="View Details"
-                        >
-                          <Icon name="eye" size={16} />
-                        </button>
+                        <div className="row-actions" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            className="icon-btn"
+                            onClick={() => setViewingRequest(r)}
+                            aria-label={`View audit details for ${r.code}`}
+                            title="View Details"
+                          >
+                            <Icon name="eye" size={16} />
+                          </button>
+                          {isApproved(r) && (
+                            <Link
+                              to={`/guard/exit?code=${r.code}`}
+                              className="btn btn-sm btn-primary"
+                              title={`Verify pass ${r.code} at the gate`}
+                            >
+                              <Icon name="check" size={13} /> Verify Exit
+                            </Link>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   )
@@ -175,21 +238,31 @@ export default function GuardAudit() {
 
       {/* View Request Details Modal */}
       <Modal
-        open={!!viewingRequest}
+        open={!!activeViewingRequest}
         title="Leave Request Audit Details"
         onClose={() => setViewingRequest(null)}
         size="lg"
         footer={
-          <button
-            type="button"
-            className="btn btn-ghost"
-            onClick={() => setViewingRequest(null)}
-          >
-            Close
-          </button>
+          <>
+            {activeViewingRequest && isApproved(activeViewingRequest) && (
+              <Link
+                to={`/guard/exit?code=${activeViewingRequest.code}`}
+                className="btn btn-primary"
+              >
+                <Icon name="check" size={15} /> Verify Exit at Gate
+              </Link>
+            )}
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => setViewingRequest(null)}
+            >
+              Close
+            </button>
+          </>
         }
       >
-        {viewingRequest && <RequestDetails request={viewingRequest} />}
+        {activeViewingRequest && <RequestDetails request={activeViewingRequest} />}
       </Modal>
     </>
   )

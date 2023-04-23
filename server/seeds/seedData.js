@@ -25,3 +25,4 @@ export const users = [
 export const belongings = []
 export const exitRequests = []
 export const gateLogs = []
+

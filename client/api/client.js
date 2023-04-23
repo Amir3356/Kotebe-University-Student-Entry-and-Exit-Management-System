@@ -1,4 +1,5 @@
-// Base HTTP client for communicating with the backend API with JWT Authorization
+// Base HTTP client for communicating with the backend API powered by Axios with JWT Authorization
+import axios from 'axios'
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 export const TOKEN_KEY = 'ku-seems:jwt'
@@ -20,30 +21,71 @@ export function setStoredToken(token) {
   }
 }
 
-export async function request(endpoint, options = {}) {
-  const url = `${API_BASE}${endpoint}`
-  const token = getStoredToken()
-
-  const headers = {
+// Dedicated Axios instance configured with API base URL and JSON content type
+export const axiosClient = axios.create({
+  baseURL: API_BASE,
+  headers: {
     'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...options.headers,
-  }
+  },
+  timeout: 15000,
+})
 
-  const config = {
-    ...options,
-    headers,
+// Request interceptor to automatically attach JWT bearer token
+axiosClient.interceptors.request.use(
+  (config) => {
+    const token = getStoredToken()
+    if (token) {
+      config.headers = config.headers || {}
+      config.headers.Authorization = `Bearer ${token}`
+    }
+    return config
+  },
+  (error) => Promise.reject(error),
+)
+
+/**
+ * Universal request wrapper powered by Axios.
+ * Supports method, data/body, query params, custom headers.
+ */
+export async function request(endpoint, options = {}) {
+  const method = (options.method || 'GET').toUpperCase()
+
+  let data = options.data
+  if (data === undefined && options.body !== undefined) {
+    if (typeof options.body === 'string') {
+      try {
+        data = JSON.parse(options.body)
+      } catch {
+        data = options.body
+      }
+    } else {
+      data = options.body
+    }
   }
 
   try {
-    const res = await fetch(url, config)
-    const data = await res.json().catch(() => ({}))
-    if (!res.ok) {
-      return { ok: false, error: data.error || data.message || `Request failed with status ${res.status}` }
-    }
-    return { ok: true, data }
+    const response = await axiosClient.request({
+      url: endpoint,
+      method,
+      data,
+      params: options.params,
+      headers: options.headers,
+    })
+    return { ok: true, data: response.data, status: response.status }
   } catch (err) {
-    return { ok: false, error: err.message, offline: true }
+    if (err.response) {
+      const errData = err.response.data || {}
+      return {
+        ok: false,
+        status: err.response.status,
+        error: errData.error || errData.message || `Request failed with status ${err.response.status}`,
+      }
+    }
+    return {
+      ok: false,
+      error: err.message || 'Network error',
+      offline: true,
+    }
   }
 }
 

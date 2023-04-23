@@ -20,16 +20,16 @@ export const BELONGING_STATUSES = {
 // --- Zod Client Schemas ---
 
 export const belongingSchema = z.object({
-  id: z.string().optional(),
-  studentId: z.string().optional(),
+  id: z.string().optional().nullable(),
+  studentId: z.string().optional().nullable(),
   category: z.string().min(1, 'Category is required.'),
   description: z.string().trim().min(1, 'Description is required.'),
-  brand: z.string().optional(),
-  serialNumber: z.string().optional(),
-  color: z.string().optional(),
+  brand: z.string().optional().nullable(),
+  serialNumber: z.string().optional().nullable(),
+  color: z.string().optional().nullable(),
   status: z.enum(['active', 'inactive']).default('active'),
-  registeredBy: z.string().optional(),
-  registeredAt: z.string().optional(),
+  registeredBy: z.string().optional().nullable(),
+  registeredAt: z.string().optional().nullable(),
 })
 
 /**

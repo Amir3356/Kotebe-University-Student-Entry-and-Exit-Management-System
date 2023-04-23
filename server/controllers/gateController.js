@@ -1,4 +1,5 @@
 import { gateService } from '../services/gateService.js'
+import { wsEvents } from '../config/socket.js'
 
 export async function getGateLogs(req, res, next) {
   try {
@@ -12,6 +13,7 @@ export async function getGateLogs(req, res, next) {
 export async function recordEntry(req, res, next) {
   try {
     const result = await gateService.recordEntry(req.body)
+    wsEvents.gateActivity(result.log)
     return res.status(201).json({
       ok: true,
       log: result.log,
@@ -25,6 +27,7 @@ export async function recordEntry(req, res, next) {
 export async function allowExit(req, res, next) {
   try {
     const result = await gateService.allowExit(req.body)
+    wsEvents.gateActivity(result.log)
     return res.json({
       ok: true,
       log: result.log,
@@ -38,6 +41,7 @@ export async function allowExit(req, res, next) {
 export async function denyExit(req, res, next) {
   try {
     const log = await gateService.denyExit(req.body)
+    wsEvents.gateActivity(log)
     return res.json({
       ok: true,
       log,

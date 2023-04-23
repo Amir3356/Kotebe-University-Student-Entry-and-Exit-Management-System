@@ -532,6 +532,7 @@ tbody tr:last-child td { border-bottom: none; }
 .detail-name { margin: 0; font-size: 1.05rem; font-weight: 700; }
 .detail-items { border: 1px solid var(--border); border-radius: var(--radius); }
 .detail-items th, .detail-items td { padding: 9px 14px; }
+.qty-badge { display: inline-block; padding: 2px 8px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); font-weight: 600; font-size: 0.85rem; }
 .table-click tbody tr:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
 
 /* ---------- Toolbar, tabs, search ---------- */

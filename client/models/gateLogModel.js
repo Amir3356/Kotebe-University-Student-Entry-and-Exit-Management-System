@@ -14,16 +14,16 @@ export const GATE_LOG_TYPES = {
 // --- Zod Client Schemas ---
 
 export const gateLogSchema = z.object({
-  id: z.string().optional(),
+  id: z.string().optional().nullable(),
   type: z.enum(['entry', 'exit', 'denied'], {
     errorMap: () => ({ message: 'Log transaction type is required.' }),
   }),
   studentId: z.string().trim().min(1, 'Student ID is required.'),
-  guardId: z.string().optional(),
+  guardId: z.string().optional().nullable(),
   gate: z.string().default('Main Gate'),
-  timestamp: z.string().optional(),
+  timestamp: z.string().optional().nullable(),
   requestId: z.string().optional().nullable(),
-  note: z.string().optional(),
+  note: z.string().optional().nullable(),
   items: z.array(z.any()).default([]),
 }).refine(
   (data) => data.type !== 'denied' || (data.note && data.note.trim().length > 0),

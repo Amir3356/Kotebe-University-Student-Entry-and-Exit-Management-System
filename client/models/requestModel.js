@@ -18,24 +18,36 @@ export const GATES = ['Main Gate', 'Back Gate']
 // --- Zod Client Schemas ---
 
 export const requestItemSchema = z.object({
-  id: z.string().optional(),
+  id: z.string().optional().nullable(),
   belongingId: z.string().optional().nullable(),
   category: z.string().optional().default('Other'),
   description: z.string().trim().min(1, 'Item description is required.'),
-  serialNumber: z.string().optional(),
-  quantity: z.number().int().min(1).default(1),
+  serialNumber: z.string().optional().nullable(),
+  quantity: z.coerce.number().int().min(1).default(1),
 })
 
 export const exitRequestSchema = z.object({
-  id: z.string().optional(),
-  code: z.string().optional(),
-  studentId: z.string().optional(),
+  id: z.string().optional().nullable(),
+  code: z.string().optional().nullable(),
+  studentId: z.string().optional().nullable(),
   reason: z.string().trim().min(1, 'Reason for exit is required.'),
-  destination: z.string().trim().min(1, 'Destination is required.'),
+  destination: z.preprocess(
+    (val) => (typeof val === 'string' && val.trim() ? val.trim() : 'Home'),
+    z.string().min(1, 'Destination is required.'),
+  ),
   departureDate: z.string().min(1, 'Departure date is required.'),
-  returnDate: z.string().min(1, 'Expected return date is required.'),
+  returnDate: z.string().optional().nullable(),
   items: z.array(requestItemSchema).min(1, 'At least one item must be selected for exit permission.'),
-  status: z.string().optional(),
+  status: z.string().optional().nullable(),
+  student: z.object({
+    name: z.string().optional().nullable(),
+    studentId: z.string().optional().nullable(),
+    department: z.string().optional().nullable(),
+    phone: z.string().optional().nullable(),
+    address: z.string().optional().nullable(),
+    subcity: z.string().optional().nullable(),
+    woreda: z.string().optional().nullable(),
+  }).optional().nullable(),
 }).refine(
   (data) => !data.departureDate || !data.returnDate || data.returnDate >= data.departureDate,
   {

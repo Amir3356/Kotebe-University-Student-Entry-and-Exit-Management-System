@@ -1,24 +1,38 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useStore } from '../../context/store'
 import Icon, { CategoryIcon } from '../../components/Icon'
 import { StudentSummary } from '../../components/RequestDetails'
 import { Callout, Card, EmptyState, Field, Modal, PageHeader, SearchInput, StatusBadge } from '../../components/ui'
+import { resolveStudent } from '../../models/userModel'
 import { formatDate, isToday, matches, todayISODate } from '../../utils/format'
 
 export default function VerifyExit() {
   const { users, exitRequests, actions } = useStore()
   const [params] = useSearchParams()
-  const [query, setQuery] = useState(params.get('code') ?? '')
+  const codeParam = params.get('code')
+  const [query, setQuery] = useState(codeParam ?? '')
   const [selectedId, setSelectedId] = useState(
-    () => exitRequests.find((r) => r.code === params.get('code') && r.status === 'approved')?.id ?? null,
+    () => exitRequests.find((r) => r.code === codeParam && (r.status === 'approved' || r.status === 'completed'))?.id ?? null,
   )
   const [checked, setChecked] = useState([])
   const [note, setNote] = useState('')
   const [denyOpen, setDenyOpen] = useState(false)
   const [denyReason, setDenyReason] = useState('')
 
-  const studentOf = (r) => users.find((u) => u.id === r.studentId)
+  useEffect(() => {
+    if (codeParam) {
+      setQuery(codeParam)
+      const found = exitRequests.find(
+        (r) => r.code === codeParam && (r.status === 'approved' || r.status === 'completed'),
+      )
+      if (found) {
+        setSelectedId(found.id)
+      }
+    }
+  }, [codeParam, exitRequests])
+
+  const studentOf = (r) => resolveStudent(r, users)
   const approved = exitRequests.filter((r) => r.status === 'approved')
   const results = approved.filter((r) => {
     const s = studentOf(r)

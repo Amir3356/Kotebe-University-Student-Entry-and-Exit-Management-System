@@ -4,12 +4,6 @@ import { useStore } from '../context/store'
 import Icon from '../components/Icon'
 import logo from '../asset/images.png'
 
-const ROLE_OPTIONS = [
-  { value: 'student', label: 'Student' },
-  { value: 'proctor', label: 'Proctor' },
-  { value: 'guard', label: 'Guard' },
-]
-
 const STEPS = [
   { icon: 'entry', title: 'Entry', text: 'Guards record laptops, PCs and other valuables at the gate.' },
   { icon: 'send', title: 'Request', text: 'Students list the belongings they want to take out.' },
@@ -19,16 +13,32 @@ const STEPS = [
 
 export default function Login() {
   const { currentUser, actions } = useStore()
-  const [form, setForm] = useState({ role: 'student', username: '', password: '' })
+  const [form, setForm] = useState({ username: '', password: '' })
   const [error, setError] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   if (currentUser) return <Navigate to={`/${currentUser.role}`} replace />
 
   async function submit(e) {
     e.preventDefault()
     setError('')
-    const result = await actions.login(form.username.trim(), form.password, form.role)
-    if (!result.ok) setError(result.error)
+    const cleanUsername = form.username.trim()
+    if (!cleanUsername) {
+      setError('Please enter your username.')
+      return
+    }
+    if (!form.password) {
+      setError('Please enter your password.')
+      return
+    }
+
+    setIsSubmitting(true)
+    try {
+      const result = await actions.login(cleanUsername, form.password)
+      if (!result.ok) setError(result.error)
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -90,27 +100,18 @@ export default function Login() {
             />
           </label>
           <label className="field">
-            <span className="field-label">Sign in as</span>
-            <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
-              {ROLE_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="field">
             <span className="field-label">Password</span>
             <input
               type="password"
               value={form.password}
               onChange={(e) => setForm({ ...form, password: e.target.value })}
               autoComplete="current-password"
+              placeholder="Password"
               required
             />
           </label>
-          <button type="submit" className="btn btn-primary btn-block btn-lg">
-            Sign in
+          <button type="submit" className="btn btn-primary btn-block btn-lg" disabled={isSubmitting}>
+            {isSubmitting ? 'Signing in...' : 'Sign in'}
           </button>
         </form>
       </section>

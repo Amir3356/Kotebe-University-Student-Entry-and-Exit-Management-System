@@ -1,4 +1,5 @@
 import { userService } from '../services/userService.js'
+import { wsEvents } from '../config/socket.js'
 
 export async function getUsers(req, res, next) {
   try {
@@ -22,6 +23,7 @@ export async function saveUser(req, res, next) {
   try {
     const user = await userService.saveUser({ ...req.body, id: req.params.id || req.body.id })
     const status = req.params.id || req.body.id ? 200 : 201
+    wsEvents.userUpdated(user)
     return res.status(status).json({ ok: true, user })
   } catch (err) {
     next(err)
@@ -31,6 +33,7 @@ export async function saveUser(req, res, next) {
 export async function toggleUserStatus(req, res, next) {
   try {
     const user = await userService.toggleUserStatus(req.params.id)
+    wsEvents.userUpdated(user)
     return res.json({ ok: true, user })
   } catch (err) {
     next(err)
@@ -40,6 +43,7 @@ export async function toggleUserStatus(req, res, next) {
 export async function deleteUser(req, res, next) {
   try {
     await userService.deleteUser(req.params.id)
+    wsEvents.userDeleted(req.params.id)
     return res.json({ ok: true, message: 'User deleted successfully.' })
   } catch (err) {
     next(err)

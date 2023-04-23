@@ -30,16 +30,21 @@ export const userRepository = {
     return result.rows[0] || null
   },
 
-  async findByUsernameOrStudentId(term, role) {
-    const q = term.trim().toLowerCase()
-    const result = await query(
-      `SELECT * FROM users
-       WHERE (LOWER(username) = $1 OR LOWER(student_id) = $1)
-         AND role = $2
-         AND status = 'active'
-       LIMIT 1`,
-      [q, role],
-    )
+  async findByUsernameOrStudentId(term, role = null) {
+    if (!term || !String(term).trim()) return null
+    const q = String(term).trim().toLowerCase()
+    const params = [q]
+    let sql = `SELECT * FROM users
+       WHERE (LOWER(username) = $1 OR LOWER(student_id) = $1 OR LOWER(name) = $1)
+         AND status = 'active'`
+
+    if (role) {
+      params.push(role)
+      sql += ` AND role = $${params.length}`
+    }
+
+    sql += ` ORDER BY CASE WHEN LOWER(username) = $1 THEN 1 WHEN LOWER(student_id) = $1 THEN 2 ELSE 3 END ASC LIMIT 1`
+    const result = await query(sql, params)
     return result.rows[0] || null
   },
 
@@ -93,7 +98,7 @@ export const userRepository = {
         user.gate || null,
         user.assignedBlocks || null,
         user.status || 'active',
-        user.approvalStatus || 'approve',
+        user.approvalStatus || 'pending',
       ],
     )
     return result.rows[0]

@@ -1,7 +1,9 @@
+import { createServer } from 'http'
 import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
 import { testConnection } from './config/db.js'
+import { initSocket } from './config/socket.js'
 import apiRouter from './routes/index.js'
 import { notFoundHandler } from './middleware/notFoundHandler.js'
 import { errorHandler } from './middleware/errorHandler.js'
@@ -56,9 +58,13 @@ app.use(notFoundHandler)
 // Central Error Handler Middleware
 app.use(errorHandler)
 
+// Create HTTP server and initialize Socket.IO
+const httpServer = createServer(app)
+initSocket(httpServer)
+
 // Start Server and check database connection
-app.listen(PORT, async () => {
-  console.log(`🚀 Monolithic Server running on http://localhost:${PORT}`)
+httpServer.listen(PORT, async () => {
+  console.log(`🚀 Monolithic Server with WebSockets running on http://localhost:${PORT}`)
   console.log(`📡 Checking PostgreSQL database connection...`)
 
   const conn = await testConnection()

@@ -9,9 +9,7 @@ export const APPROVAL_STATUSES = ['approve', 'pending', 'reject']
 
 export const loginSchema = z.object({
   username: z.string({ required_error: 'Username is required' }).trim().min(1, 'Username cannot be empty'),
-  role: z.enum(['student', 'guard', 'proctor'], {
-    errorMap: () => ({ message: 'Role must be student, guard, or proctor' }),
-  }),
+  role: z.enum(['student', 'guard', 'proctor']).optional().nullable(),
   password: z.string().optional(),
 })
 
@@ -35,7 +33,7 @@ export const userCreateSchema = z.object({
   gate: z.string().optional().nullable(),
   assignedBlocks: z.string().optional().nullable(),
   status: z.enum(['active', 'inactive']).default('active'),
-  approvalStatus: z.enum(['approve', 'pending', 'reject']).default('approve'),
+  approvalStatus: z.enum(['approve', 'pending', 'reject']).default('pending'),
   idempotencyKey: z.string().optional().nullable(),
 })
 

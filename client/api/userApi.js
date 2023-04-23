@@ -1,10 +1,7 @@
 import { request } from './client'
 
 export const userApi = {
-  getUsers: (params = {}) => {
-    const q = new URLSearchParams(params).toString()
-    return request(`/users${q ? `?${q}` : ''}`)
-  },
+  getUsers: (params = {}) => request('/users', { params }),
   saveUser: (userData, options = {}) => {
     const idempotencyKey = options.idempotencyKey || userData.idempotencyKey
     const headers = {}
@@ -14,7 +11,7 @@ export const userApi = {
     const { idempotencyKey: _, ...payload } = userData
     return request(payload.id ? `/users/${payload.id}` : '/users', {
       method: payload.id ? 'PUT' : 'POST',
-      body: JSON.stringify(payload),
+      data: payload,
       headers,
     })
   },

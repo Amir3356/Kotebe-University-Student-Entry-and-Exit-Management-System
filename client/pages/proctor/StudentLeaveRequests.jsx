@@ -11,6 +11,7 @@ import {
   SearchInput,
   StatusBadge,
 } from '../../components/ui'
+import { resolveStudent } from '../../models/userModel'
 import { formatDateTime, matches } from '../../utils/format'
 
 export default function StudentLeaveRequests() {
@@ -20,7 +21,7 @@ export default function StudentLeaveRequests() {
   const [rejectingRequest, setRejectingRequest] = useState(null)
   const [rejectReason, setRejectReason] = useState('')
 
-  const studentOf = (r) => users.find((u) => u.id === r.studentId)
+  const studentOf = (r) => resolveStudent(r, users)
 
   const searched = exitRequests.filter((r) => {
     const s = studentOf(r)
@@ -37,18 +38,20 @@ export default function StudentLeaveRequests() {
       s?.address,
       s?.subcity,
       s?.woreda,
+      ...(r.items?.map((i) => i.description) ?? []),
     )
   })
 
   const visible = searched
 
   function openReject(r) {
+    if (r.status !== 'pending') return
     setRejectingRequest(r)
     setRejectReason('')
   }
 
   function confirmReject() {
-    if (!rejectingRequest) return
+    if (!rejectingRequest || rejectingRequest.status !== 'pending') return
     actions.reviewRequest(rejectingRequest.id, 'rejected', rejectReason || 'Rejected by Proctor')
     setRejectingRequest(null)
     if (viewingRequest?.id === rejectingRequest.id) {
@@ -57,6 +60,7 @@ export default function StudentLeaveRequests() {
   }
 
   function handleApprove(r) {
+    if (r.status !== 'pending') return
     actions.reviewRequest(r.id, 'approved', 'Approved by Proctor')
     if (viewingRequest?.id === r.id) {
       setViewingRequest(null)
@@ -75,7 +79,7 @@ export default function StudentLeaveRequests() {
         <SearchInput
           value={query}
           onChange={setQuery}
-          placeholder="Search by student name, ID, department, phone…"
+          placeholder="Search by student name, ID, department, phone, address, item…"
         />
       </div>
 
@@ -90,13 +94,14 @@ export default function StudentLeaveRequests() {
                 <th>Department</th>
                 <th>Phone Number</th>
                 <th>Date & Time Registered</th>
+                <th>Status</th>
                 <th className="right">Action</th>
               </tr>
             </thead>
             <tbody>
               {visible.length === 0 ? (
                 <tr>
-                  <td colSpan="7" style={{ padding: '36px 16px', textAlign: 'center' }}>
+                  <td colSpan="8" style={{ padding: '36px 16px', textAlign: 'center' }}>
                     <EmptyState
                       icon="clipboard"
                       title="No requests found"
@@ -128,6 +133,9 @@ export default function StudentLeaveRequests() {
                       <td>{s?.department || '—'}</td>
                       <td className="nowrap">{s?.phone || '—'}</td>
                       <td className="nowrap">{formatDateTime(r.createdAt || s?.createdAt)}</td>
+                      <td>
+                        <StatusBadge status={r.status} />
+                      </td>
                       <td className="right nowrap">
                         <div className="row-actions">
                           <button
@@ -135,11 +143,17 @@ export default function StudentLeaveRequests() {
                             className="icon-btn approve"
                             onClick={(e) => {
                               e.stopPropagation()
-                              handleApprove(r)
+                              if (r.status === 'pending') handleApprove(r)
                             }}
                             aria-label={`Approve ${r.code}`}
-                            title="Approve leave request"
-                            disabled={r.status === 'approved'}
+                            title={
+                              r.status === 'approved'
+                                ? 'Decision locked: request already approved'
+                                : r.status !== 'pending'
+                                ? 'Decision locked'
+                                : 'Approve leave request'
+                            }
+                            disabled={r.status !== 'pending'}
                           >
                             <Icon name="approve" size={18} />
                           </button>
@@ -148,11 +162,17 @@ export default function StudentLeaveRequests() {
                             className="icon-btn reject"
                             onClick={(e) => {
                               e.stopPropagation()
-                              openReject(r)
+                              if (r.status === 'pending') openReject(r)
                             }}
                             aria-label={`Reject ${r.code}`}
-                            title="Reject leave request"
-                            disabled={r.status === 'rejected'}
+                            title={
+                              r.status === 'approved'
+                                ? 'Decision locked: request already approved'
+                                : r.status !== 'pending'
+                                ? 'Decision locked'
+                                : 'Reject leave request'
+                            }
+                            disabled={r.status !== 'pending'}
                           >
                             <Icon name="reject" size={18} />
                           </button>
@@ -175,23 +195,23 @@ export default function StudentLeaveRequests() {
         size="lg"
         footer={
           <>
-            {viewingRequest && viewingRequest.status !== 'approved' && (
-              <button
-                type="button"
-                className="btn btn-success"
-                onClick={() => handleApprove(viewingRequest)}
-              >
-                <Icon name="check" size={14} /> Approve Request
-              </button>
-            )}
-            {viewingRequest && viewingRequest.status !== 'rejected' && (
-              <button
-                type="button"
-                className="btn btn-danger-ghost"
-                onClick={() => openReject(viewingRequest)}
-              >
-                <Icon name="x" size={14} /> Reject Request
-              </button>
+            {viewingRequest && viewingRequest.status === 'pending' && (
+              <>
+                <button
+                  type="button"
+                  className="btn btn-success"
+                  onClick={() => handleApprove(viewingRequest)}
+                >
+                  <Icon name="check" size={14} /> Approve Request
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-danger-ghost"
+                  onClick={() => openReject(viewingRequest)}
+                >
+                  <Icon name="x" size={14} /> Reject Request
+                </button>
+              </>
             )}
             <button
               type="button"
