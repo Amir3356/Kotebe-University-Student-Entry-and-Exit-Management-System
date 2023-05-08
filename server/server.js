@@ -1,9 +1,10 @@
 import { createServer } from 'http'
+import { execSync } from 'child_process'
 import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
-import { testConnection } from './config/db.js'
-import { initSocket } from './config/socket.js'
+import { pool, testConnection } from './config/db.js'
+import { initSocket, getIO } from './config/socket.js'
 import apiRouter from './routes/index.js'
 import { notFoundHandler } from './middleware/notFoundHandler.js'
 import { errorHandler } from './middleware/errorHandler.js'
@@ -62,16 +63,78 @@ app.use(errorHandler)
 const httpServer = createServer(app)
 initSocket(httpServer)
 
-// Start Server and check database connection
-httpServer.listen(PORT, async () => {
-  console.log(`🚀 Monolithic Server with WebSockets running on http://localhost:${PORT}`)
-  console.log(`📡 Checking PostgreSQL database connection...`)
+const startServer = () => {
+  httpServer.listen(PORT, async () => {
+    console.log(`🚀 Monolithic Server with WebSockets running on http://localhost:${PORT}`)
+    console.log(`📡 Checking PostgreSQL database connection...`)
 
-  const conn = await testConnection()
-  if (conn.ok) {
-    console.log(`✅ Connected to PostgreSQL database "${conn.info.database}".`)
+    const conn = await testConnection()
+    if (conn.ok) {
+      console.log(`✅ Connected to PostgreSQL database "${conn.info.database}".`)
+    } else {
+      console.warn(`⚠️ Could not automatically connect to PostgreSQL: ${conn.error}`)
+      console.info(`💡 Please verify PostgreSQL credentials in .env and run npm run db:migrate`)
+    }
+  })
+}
+
+// Auto-recovery if port is in use
+let retryAttempt = false
+httpServer.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    if (!retryAttempt) {
+      retryAttempt = true
+      console.warn(`⚠️ Port ${PORT} is currently in use. Automatically freeing port ${PORT}...`)
+      try {
+        execSync(`fuser -k ${PORT}/tcp 2>/dev/null || true`)
+        setTimeout(() => {
+          console.log(`🔄 Retrying server start on port ${PORT}...`)
+          startServer()
+        }, 1000)
+        return
+      } catch (fuserErr) {
+        console.error(`Failed to automatically free port ${PORT}:`, fuserErr.message)
+      }
+    } else {
+      console.error(`❌ Port ${PORT} is still in use after retry. Please stop conflicting processes.`)
+      process.exit(1)
+    }
   } else {
-    console.warn(`⚠️ Could not automatically connect to PostgreSQL: ${conn.error}`)
-    console.info(`💡 Please verify PostgreSQL credentials in .env and run npm run db:migrate`)
+    console.error('Fatal HTTP server error:', err)
+    process.exit(1)
   }
 })
+
+// Graceful cleanup on nodemon restart and system signals
+const cleanup = async () => {
+  try {
+    const io = getIO()
+    if (io) {
+      io.close()
+    }
+    if (httpServer.closeAllConnections) {
+      httpServer.closeAllConnections()
+    }
+    await new Promise((resolve) => httpServer.close(resolve))
+    await pool.end().catch(() => {})
+  } catch (err) {
+    // Ignore cleanup errors
+  }
+}
+
+process.once('SIGUSR2', async () => {
+  await cleanup()
+  process.kill(process.pid, 'SIGUSR2')
+})
+
+process.on('SIGINT', async () => {
+  await cleanup()
+  process.exit(0)
+})
+
+process.on('SIGTERM', async () => {
+  await cleanup()
+  process.exit(0)
+})
+
+startServer()

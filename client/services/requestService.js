@@ -49,33 +49,47 @@ export const requestService = {
       exitedAt: null,
     }
 
-    requestApi.createExitRequest({
+    return request
+  },
+
+  /**
+   * Persists a freshly built exit request on the server.
+   * Returns the API result ({ ok, data } | { ok: false, error }) so callers can
+   * await it and surface failures instead of showing a false "submitted".
+   */
+  persistExitRequest(request) {
+    return requestApi.createExitRequest({
       id: request.id,
       code: request.code,
-      reason,
-      destination,
-      departureDate,
-      returnDate,
-      items,
-      studentId,
-      student,
-    }).catch(() => {})
-
-    return request
+      reason: request.reason,
+      destination: request.destination,
+      departureDate: request.departureDate,
+      returnDate: request.returnDate,
+      items: request.items,
+      studentId: request.studentId,
+      student: request.student,
+    })
   },
 
   /**
    * Reviews request (proctor decision).
    */
   reviewRequest(requestId, decision, note, reviewerId) {
-    requestApi.reviewRequest(requestId, decision, note, reviewerId).catch(() => {})
+    return requestApi.reviewRequest(requestId, decision, note, reviewerId)
   },
 
   /**
    * Cancels a pending request.
    */
   cancelRequest(requestId) {
-    requestApi.cancelRequest(requestId).catch(() => {})
+    return requestApi.cancelRequest(requestId)
+  },
+
+  /**
+   * Deletes a request.
+   */
+  deleteRequest(requestId) {
+    return requestApi.deleteRequest(requestId)
   },
 }
 

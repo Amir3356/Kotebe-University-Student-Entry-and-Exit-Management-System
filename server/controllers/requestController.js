@@ -55,3 +55,15 @@ export async function cancelRequest(req, res, next) {
     next(err)
   }
 }
+
+export async function deleteExitRequest(req, res, next) {
+  try {
+    const result = await requestService.deleteRequest(req.params.id)
+    if (wsEvents?.requestDeleted) {
+      wsEvents.requestDeleted({ id: req.params.id })
+    }
+    return res.json({ ok: true, id: req.params.id })
+  } catch (err) {
+    next(err)
+  }
+}

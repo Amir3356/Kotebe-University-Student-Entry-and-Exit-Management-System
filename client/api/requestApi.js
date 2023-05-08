@@ -13,6 +13,7 @@ export const requestApi = {
       data: { decision, note, reviewedBy },
     }),
   cancelRequest: (id) => request(`/exit-requests/${id}/cancel`, { method: 'PATCH' }),
+  deleteRequest: (id) => request(`/exit-requests/${id}`, { method: 'DELETE' }),
 }
 
 export default requestApi

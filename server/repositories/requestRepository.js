@@ -156,6 +156,22 @@ export const requestRepository = {
     return result.rows[0] || null
   },
 
+  async update(id, data, dbClient = null) {
+    const executor = dbClient || pool
+    const { reason, destination, departureDate, returnDate } = data
+    const result = await executor.query(
+      `UPDATE exit_requests SET
+        reason = COALESCE($1, reason),
+        destination = COALESCE($2, destination),
+        departure_date = COALESCE($3, departure_date),
+        return_date = COALESCE($4, return_date)
+      WHERE id = $5
+      RETURNING *`,
+      [reason || null, destination || null, departureDate || null, returnDate || null, id],
+    )
+    return result.rows[0] || null
+  },
+
   async complete(id, verifiedBy, dbClient = null) {
     const executor = dbClient || pool
     const result = await executor.query(
@@ -166,6 +182,14 @@ export const requestRepository = {
       WHERE id = $2
       RETURNING *`,
       [verifiedBy || null, id],
+    )
+    return result.rows[0] || null
+  },
+
+  async delete(id) {
+    const result = await query(
+      `DELETE FROM exit_requests WHERE id = $1 RETURNING *`,
+      [id],
     )
     return result.rows[0] || null
   },

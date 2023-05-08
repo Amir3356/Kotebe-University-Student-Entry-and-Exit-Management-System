@@ -15,12 +15,14 @@ export const userService = {
 
   async saveUser(data) {
     const { id, role, name, username, password, studentId } = data
-    const cleanUsername = username.trim()
+    const cleanUsername = (username || '').trim()
 
     // Validate duplicate username
-    const usernameTaken = await userRepository.isUsernameTaken(cleanUsername, id)
-    if (usernameTaken) {
-      throw new Error(`Username "${cleanUsername}" is already taken.`)
+    if (cleanUsername) {
+      const usernameTaken = await userRepository.isUsernameTaken(cleanUsername, id)
+      if (usernameTaken) {
+        throw new Error(`Username "${cleanUsername}" is already taken.`)
+      }
     }
 
     // Validate duplicate studentId
@@ -35,11 +37,27 @@ export const userService = {
     if (id) {
       const existing = await userRepository.findById(id)
       if (existing) {
+        // Merge partial updates onto the existing record so omitted fields are not
+        // wiped, and only change the password when a new one is actually supplied.
+        const keep = (val, prev) => (val === undefined || val === null || val === '' ? prev : val)
         const updated = await userRepository.update(id, {
           ...data,
-          name: name.trim(),
-          username: cleanUsername,
-          studentId: studentId ? studentId.trim().toUpperCase() : null,
+          name: (keep(name, existing.name) || '').trim(),
+          username: keep(cleanUsername, existing.username),
+          password: password && String(password).trim() ? String(password).trim() : null,
+          email: keep(data.email, existing.email),
+          phone: keep(data.phone, existing.phone),
+          studentId: studentId ? studentId.trim().toUpperCase() : existing.student_id,
+          department: keep(data.department, existing.department),
+          address: keep(data.address, existing.address),
+          subcity: keep(data.subcity, existing.subcity),
+          woreda: keep(data.woreda, existing.woreda),
+          year: keep(data.year, existing.year),
+          dorm: keep(data.dorm, existing.dorm),
+          gate: keep(data.gate, existing.gate),
+          assignedBlocks: keep(data.assignedBlocks, existing.assigned_blocks),
+          status: keep(data.status, existing.status),
+          approvalStatus: keep(data.approvalStatus, existing.approval_status),
         })
         return formatUser(updated)
       } else {
@@ -47,7 +65,7 @@ export const userService = {
           role: role || 'student',
           ...data,
           id,
-          name: name.trim(),
+          name: (name || '').trim(),
           username: cleanUsername,
           password: (password || 'password123').trim(),
           studentId: studentId ? studentId.trim().toUpperCase() : null,
@@ -59,7 +77,7 @@ export const userService = {
       const created = await userRepository.create({
         ...data,
         id: newId,
-        name: name.trim(),
+        name: (name || '').trim(),
         username: cleanUsername,
         password: (password || 'password123').trim(),
         studentId: studentId ? studentId.trim().toUpperCase() : null,

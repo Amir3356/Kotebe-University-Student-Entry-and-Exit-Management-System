@@ -5,6 +5,7 @@
   "main": "server.js",
   "type": "module",
   "scripts": {
+    "predev": "fuser -k 5000/tcp 2>/dev/null || true",
     "dev": "nodemon server.js",
     "start": "node server.js",
     "db:migrate": "knex migrate:latest",

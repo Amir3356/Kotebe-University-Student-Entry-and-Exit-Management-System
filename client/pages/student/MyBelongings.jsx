@@ -15,18 +15,15 @@ import {
 } from '../../components/ui'
 import { formatDateTime, matches, todayISODate, uid } from '../../utils/format'
 
-function resolveStatus(s, request) {
-  if (request?.status) {
-    if (request.status === 'approved' || request.status === 'approve') return 'approved'
-    if (request.status === 'rejected' || request.status === 'reject') return 'rejected'
-    if (request.status === 'pending') return 'pending'
-    return request.status
-  }
-  if (!s) return 'pending'
-  if (s.approvalStatus === 'approved' || s.approvalStatus === 'approve') return 'approved'
-  if (s.approvalStatus === 'rejected' || s.approvalStatus === 'reject') return 'rejected'
-  if (s.approvalStatus === 'pending') return 'pending'
-  return 'pending'
+// The Status column reflects the student's leave request, not their account's
+// default approval flag. With no request there is nothing for the proctor to
+// review, so no "Pending" status should be shown.
+function resolveStatus(request) {
+  const status = request?.status
+  if (!status) return null
+  if (status === 'approved' || status === 'approve') return 'approved'
+  if (status === 'rejected' || status === 'reject') return 'rejected'
+  return status
 }
 
 // Suggestions for the item name field; the student can still type anything.
@@ -63,16 +60,6 @@ export default function MyBelongings() {
   const [deletingStudent, setDeletingStudent] = useState(null)
   const [deletedIds, setDeletedIds] = useState(() => new Set())
 
-  const allStudents = users.filter((u) => u.role === 'student')
-  const students = (
-    currentUser?.role === 'student' &&
-    !allStudents.some((s) => s.id === currentUser.id) &&
-    !deletedIds.has(currentUser.id) &&
-    !deletedIds.has(currentUser.studentId)
-      ? [currentUser, ...allStudents]
-      : allStudents
-  ).filter((s) => !deletedIds.has(s.id) && !deletedIds.has(s.studentId))
-
   // Item, Quantity and Reason columns come from the student's most recent leave request.
   const latestRequestOf = (student) => {
     if (!student) return null
@@ -89,9 +76,31 @@ export default function MyBelongings() {
     )
   }
 
+  const allStudents = users.filter((u) => u.role === 'student')
+
+  // When logged in as a student, scope to the current user's belongings only.
+  const baseStudents =
+    currentUser?.role === 'student'
+      ? [
+          users.find(
+            (u) =>
+              u.id === currentUser.id ||
+              (u.studentId && currentUser.studentId && u.studentId.toLowerCase() === currentUser.studentId.toLowerCase()),
+          ) || currentUser,
+        ]
+      : allStudents
+
+  // A student record only appears in "My Belongings" if they have actually added items
+  const students = baseStudents
+    .filter((s) => Boolean(s) && !deletedIds.has(s.id) && !deletedIds.has(s.studentId))
+    .filter((s) => {
+      const request = latestRequestOf(s)
+      return Boolean(request && request.items && request.items.length > 0)
+    })
+
   const visible = students.filter((s) => {
     const request = latestRequestOf(s)
-    const status = resolveStatus(s, request)
+    const status = resolveStatus(request)
     const matchesStatus =
       statusFilter === 'all' ||
       status === statusFilter ||
@@ -275,10 +284,24 @@ export default function MyBelongings() {
     setEditingStudent(null)
   }
 
-  function handleDelete() {
+  async function handleDelete() {
     if (!deletingStudent) return
     const idToDelete = deletingStudent.id
     const studentIdCode = deletingStudent.studentId
+
+    // Find and delete all belongings/exit requests for this student from the backend
+    const studentRequests = exitRequests.filter(
+      (r) =>
+        r.studentId === idToDelete ||
+        (studentIdCode && r.studentId?.toLowerCase() === studentIdCode.toLowerCase()) ||
+        (currentUser?.id === idToDelete && r.studentId === currentUser.id),
+    )
+
+    if (actions.deleteRequest) {
+      for (const r of studentRequests) {
+        await actions.deleteRequest(r.id)
+      }
+    }
 
     setDeletedIds((prev) => {
       const next = new Set(prev)
@@ -287,9 +310,10 @@ export default function MyBelongings() {
       return next
     })
 
-    if (actions.deleteUser) {
+    if (currentUser?.role !== 'student' && actions.deleteUser) {
       actions.deleteUser({ id: idToDelete, studentId: studentIdCode })
     }
+
     setDeletingStudent(null)
   }
 
@@ -327,7 +351,7 @@ export default function MyBelongings() {
         </div>
       </div>
       <p className="muted small results-count">
-        Showing {visible.length} of {students.length} students
+        Showing {visible.length} {visible.length === 1 ? 'record' : 'records'}
       </p>
 
       <Card flush>
@@ -366,7 +390,7 @@ export default function MyBelongings() {
               ) : (
                 visible.map((s, index) => {
                   const request = latestRequestOf(s)
-                  const status = resolveStatus(s, request)
+                  const status = resolveStatus(request)
                   return (
                     <tr key={s.id}>
                       <td className="cell-num">{index + 1}</td>
@@ -407,14 +431,18 @@ export default function MyBelongings() {
                       </td>
                       <td className="cell-reason">{request?.reason || '—'}</td>
                       <td>
-                        <StatusBadge status={status} />
+                        {status ? (
+                          <StatusBadge status={status} />
+                        ) : (
+                          <span className="muted">No request</span>
+                        )}
                       </td>
-                      <td className="nowrap">{formatDateTime(s.registeredAt || s.createdAt)}</td>
+                      <td className="nowrap">{formatDateTime(request?.createdAt || s.registeredAt || s.createdAt)}</td>
                       <td className="right nowrap">
                         <button
                           type="button"
                           className="icon-btn"
-                          onClick={() => setEditingStudent({ ...s, approvalStatus: status })}
+                          onClick={() => setEditingStudent({ ...s, approvalStatus: s.approvalStatus || status || 'pending' })}
                           aria-label={`Edit ${s.name}`}
                           title="Edit"
                         >
@@ -630,7 +658,7 @@ export default function MyBelongings() {
       {/* Delete Student Modal */}
       <Modal
         open={!!deletingStudent}
-        title="Remove Student Record?"
+        title={currentUser?.role === 'student' ? 'Remove Belongings Record?' : 'Remove Student Record?'}
         onClose={() => setDeletingStudent(null)}
         footer={
           <>
@@ -645,8 +673,14 @@ export default function MyBelongings() {
       >
         {deletingStudent && (
           <p>
-            Are you sure you want to delete the record for <strong>{deletingStudent.name}</strong> (
-            <code>{deletingStudent.studentId}</code>)? This action cannot be undone.
+            {currentUser?.role === 'student' ? (
+              <>Are you sure you want to remove your belongings record? This action cannot be undone.</>
+            ) : (
+              <>
+                Are you sure you want to delete the record for <strong>{deletingStudent.name}</strong> (
+                <code>{deletingStudent.studentId}</code>)? This action cannot be undone.
+              </>
+            )}
           </p>
         )}
       </Modal>

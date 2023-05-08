@@ -400,6 +400,14 @@ export function StoreProvider({ children }) {
       }))
     }
 
+    function handleRequestDeleted(payload) {
+      if (!payload?.id) return
+      setData((prev) => ({
+        ...prev,
+        exitRequests: prev.exitRequests.filter((r) => r.id !== payload.id),
+      }))
+    }
+
     function handleGateActivity(log) {
       if (!log) return
       setData((prev) => ({
@@ -419,6 +427,7 @@ export function StoreProvider({ children }) {
     socket.on('request:reviewed', handleRequestReviewed)
     socket.on('request:created', handleRequestCreated)
     socket.on('request:cancelled', handleRequestCancelled)
+    socket.on('request:deleted', handleRequestDeleted)
     socket.on('user:updated', handleUserUpdated)
     socket.on('user:deleted', handleUserDeleted)
     socket.on('gate:activity', handleGateActivity)
@@ -427,6 +436,7 @@ export function StoreProvider({ children }) {
       socket.off('request:reviewed', handleRequestReviewed)
       socket.off('request:created', handleRequestCreated)
       socket.off('request:cancelled', handleRequestCancelled)
+      socket.off('request:deleted', handleRequestDeleted)
       socket.off('user:updated', handleUserUpdated)
       socket.off('user:deleted', handleUserDeleted)
       socket.off('gate:activity', handleGateActivity)
@@ -502,7 +512,7 @@ export function StoreProvider({ children }) {
       },
 
       // Student: ask permission to leave with a list of belongings.
-      createExitRequest({ reason, destination, departureDate, returnDate, items, studentId, student }) {
+      async createExitRequest({ reason, destination, departureDate, returnDate, items, studentId, student }) {
         const targetStudentId = studentId ?? currentUser?.id
         const studentInfo =
           student ||
@@ -536,39 +546,76 @@ export function StoreProvider({ children }) {
           existingRequests: data.exitRequests,
         })
 
+        // Optimistically show the request, then persist it. If the server rejects
+        // it, roll back so the student is never told a request reached the proctor
+        // when it did not.
         setData((prev) => ({ ...prev, exitRequests: [request, ...prev.exitRequests] }))
+        const result = await requestService.persistExitRequest(request)
+        if (!result || result.ok === false) {
+          setData((prev) => ({
+            ...prev,
+            exitRequests: prev.exitRequests.filter((r) => r.id !== request.id),
+          }))
+          const message = result?.error || 'Could not submit the request. Please try again.'
+          notify(message, 'danger')
+          throw new Error(message)
+        }
         notify(`Request ${request.code} submitted for proctor approval.`)
         return request
       },
 
-      cancelRequest(requestId) {
-        requestService.cancelRequest(requestId)
+      async cancelRequest(requestId) {
+        const target = data.exitRequests.find((r) => r.id === requestId)
+        if (!target || target.status !== 'pending') return
         setData((prev) => ({
           ...prev,
           exitRequests: prev.exitRequests.map((r) =>
             r.id === requestId && r.status === 'pending' ? { ...r, status: 'cancelled' } : r,
           ),
         }))
+        const result = await requestService.cancelRequest(requestId)
+        if (!result || result.ok === false) {
+          setData((prev) => ({
+            ...prev,
+            exitRequests: prev.exitRequests.map((r) =>
+              r.id === requestId && r.status === 'cancelled' ? { ...r, status: 'pending' } : r,
+            ),
+          }))
+          notify(result?.error || 'Could not cancel the request. Please try again.', 'danger')
+          return
+        }
         notify('Request cancelled.', 'info')
       },
 
+      async deleteRequest(requestId) {
+        if (!requestId) return
+        setData((prev) => ({
+          ...prev,
+          exitRequests: prev.exitRequests.filter((r) => r.id !== requestId),
+        }))
+        const result = await requestService.deleteRequest(requestId)
+        if (!result || result.ok === false) {
+          syncFromBackend()
+          notify(result?.error || 'Could not delete request.', 'danger')
+          return
+        }
+        notify('Belongings record deleted.', 'info')
+      },
+
       // Proctor: approve or reject a departure request.
-      reviewRequest(requestId, decision, note) {
+      async reviewRequest(requestId, decision, note) {
         const targetRequest = data.exitRequests.find((r) => r.id === requestId)
         if (!targetRequest || targetRequest.status !== 'pending') return
 
-        requestService.reviewRequest(requestId, decision, note, currentUser?.id)
         const targetStudentId = targetRequest?.studentId
+        const previousStatus = targetRequest.status
+        const previousUser = targetStudentId ? data.users.find((u) => u.id === targetStudentId) : null
+        const previousApproval = previousUser?.approvalStatus
 
         setData((prev) => ({
           ...prev,
           exitRequests: prev.exitRequests.map((r) =>
-            r.id === requestId ||
-            (targetRequest?.code && r.code === targetRequest.code) ||
-            (targetStudentId &&
-              (r.studentId === targetStudentId ||
-                (targetRequest.studentId && r.studentId === targetRequest.studentId)) &&
-              r.status === 'pending')
+            r.id === requestId || (targetRequest?.code && r.code === targetRequest.code)
               ? { ...r, status: decision, reviewedBy: currentUser?.id, reviewedAt: now(), reviewNote: note.trim() }
               : r,
           ),
@@ -584,6 +631,32 @@ export function StoreProvider({ children }) {
           (currentUser?.studentId && targetStudentId && currentUser.studentId.toLowerCase() === targetStudentId.toLowerCase())
         ) {
           setCurrentUser((prev) => ({ ...prev, approvalStatus: decision === 'approved' ? 'approved' : 'rejected' }))
+        }
+
+        const result = await requestService.reviewRequest(requestId, decision, note, currentUser?.id)
+        if (!result || result.ok === false) {
+          setData((prev) => ({
+            ...prev,
+            exitRequests: prev.exitRequests.map((r) =>
+              r.id === requestId || (targetRequest?.code && r.code === targetRequest.code)
+                ? { ...r, status: previousStatus, reviewedBy: targetRequest.reviewedBy, reviewedAt: targetRequest.reviewedAt, reviewNote: targetRequest.reviewNote }
+                : r,
+            ),
+            users: prev.users.map((u) =>
+              u.id === targetStudentId ||
+              (u.studentId && targetStudentId && u.studentId.toLowerCase() === targetStudentId.toLowerCase())
+                ? { ...u, approvalStatus: previousApproval }
+                : u,
+            ),
+          }))
+          if (
+            currentUser?.id === targetStudentId ||
+            (currentUser?.studentId && targetStudentId && currentUser.studentId.toLowerCase() === targetStudentId.toLowerCase())
+          ) {
+            setCurrentUser((prev) => ({ ...prev, approvalStatus: previousApproval }))
+          }
+          notify(result?.error || 'Could not review the request. Please try again.', 'danger')
+          return
         }
         notify(decision === 'approved' ? 'Request approved.' : 'Request rejected.', decision === 'approved' ? 'success' : 'info')
       },

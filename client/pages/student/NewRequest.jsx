@@ -17,6 +17,7 @@ export default function NewRequest() {
   const [selected, setSelected] = useState([])
   const [extras, setExtras] = useState([])
   const [errors, setErrors] = useState({})
+  const [submitError, setSubmitError] = useState('')
 
   const mine = belongings.filter((b) => b.studentId === currentUser.id && (b.status === 'active' || b.status === 'on_campus'))
   // A belonging already in a pending/approved request can't be requested twice.
@@ -33,7 +34,7 @@ export default function NewRequest() {
   const filledExtras = extras.filter((e) => e.description.trim())
   const totalItems = selected.length + filledExtras.length
 
-  function submit(e) {
+  async function submit(e) {
     e.preventDefault()
     const next = {}
     if (!form.reason.trim()) next.reason = 'Tell the proctor why you are leaving.'
@@ -48,8 +49,13 @@ export default function NewRequest() {
       ...mine.filter((b) => selected.includes(b.id)).map((b) => ({ ...b, belongingId: b.id, quantity: 1 })),
       ...filledExtras.map((x) => ({ ...x, belongingId: null })),
     ]
-    actions.createExitRequest({ ...form, items })
-    navigate('/student/requests')
+    setSubmitError('')
+    try {
+      await actions.createExitRequest({ ...form, items })
+      navigate('/student/requests')
+    } catch (err) {
+      setSubmitError(err.message || 'Could not submit the request. Please try again.')
+    }
   }
 
   return (
@@ -164,6 +170,7 @@ export default function NewRequest() {
               <div><dt>Other items</dt><dd>{filledExtras.length}</dd></div>
             </dl>
             {errors.items && <Callout tone="danger">{errors.items}</Callout>}
+            {submitError && <Callout tone="danger">{submitError}</Callout>}
             <button type="submit" className="btn btn-primary btn-block btn-lg">
               <Icon name="send" size={16} /> Submit request
             </button>

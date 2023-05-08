@@ -200,6 +200,14 @@ export const requestService = {
     const items = await requestRepository.findItemsByRequestId(id)
     return formatExitRequest(updated, items.map(formatRequestItem))
   },
+
+  async deleteRequest(id) {
+    const deleted = await requestRepository.delete(id)
+    if (!deleted) {
+      throw new Error('Request not found.')
+    }
+    return { ok: true, id }
+  },
 }
 
 export default requestService

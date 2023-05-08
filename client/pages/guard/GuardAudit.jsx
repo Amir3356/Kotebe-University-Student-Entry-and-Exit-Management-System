@@ -12,14 +12,12 @@ import {
   SearchInput,
   StatCard,
   StatusBadge,
-  Tabs,
 } from '../../components/ui'
 import { resolveStudent } from '../../models/userModel'
 import { formatDateTime, matches } from '../../utils/format'
 
 export default function GuardAudit() {
   const { exitRequests, users } = useStore()
-  const [tab, setTab] = useState('all')
   const [query, setQuery] = useState('')
   const [viewingRequest, setViewingRequest] = useState(null)
 
@@ -29,6 +27,9 @@ export default function GuardAudit() {
   const isApproved = (r) => ['approved', 'approve', 'completed'].includes(norm(r.status))
   const isPending = (r) => norm(r.status) === 'pending'
   const isRejected = (r) => ['rejected', 'reject', 'denied'].includes(norm(r.status))
+  // Only passes that are still awaiting gate verification can be checked at the gate.
+  // 'completed' passes already left campus, so sending the guard to Verify Exit would dead-end.
+  const canVerifyExit = (r) => norm(r.status) === 'approved'
 
   const proctorOf = (r) => {
     if (r.reviewer) return r.reviewer
@@ -70,23 +71,7 @@ export default function GuardAudit() {
     )
   })
 
-  const visible =
-    tab === 'all'
-      ? searched
-      : tab === 'approved'
-      ? searched.filter(isApproved)
-      : tab === 'pending'
-      ? searched.filter(isPending)
-      : tab === 'rejected'
-      ? searched.filter(isRejected)
-      : searched.filter((r) => norm(r.status) === norm(tab))
-
-  const tabs = [
-    { value: 'all', label: 'All', count: searched.length },
-    { value: 'approved', label: 'Approved', count: searched.filter(isApproved).length },
-    { value: 'pending', label: 'Pending', count: searched.filter(isPending).length },
-    { value: 'rejected', label: 'Rejected', count: searched.filter(isRejected).length },
-  ]
+  const visible = searched
 
   const approvedCount = exitRequests.filter(isApproved).length
   const pendingCount = exitRequests.filter(isPending).length
@@ -122,14 +107,11 @@ export default function GuardAudit() {
       </div>
 
       <div className="toolbar">
-        <Tabs tabs={tabs} value={tab} onChange={setTab} />
-        <div className="toolbar-right">
-          <SearchInput
-            value={query}
-            onChange={setQuery}
-            placeholder="Search by student name, ID, code, destination, proctor…"
-          />
-        </div>
+        <SearchInput
+          value={query}
+          onChange={setQuery}
+          placeholder="Search by student name, ID, code, destination, proctor, status…"
+        />
       </div>
 
       <Card flush>
@@ -216,7 +198,7 @@ export default function GuardAudit() {
                           >
                             <Icon name="eye" size={16} />
                           </button>
-                          {isApproved(r) && (
+                          {canVerifyExit(r) && (
                             <Link
                               to={`/guard/exit?code=${r.code}`}
                               className="btn btn-sm btn-primary"
@@ -244,7 +226,7 @@ export default function GuardAudit() {
         size="lg"
         footer={
           <>
-            {activeViewingRequest && isApproved(activeViewingRequest) && (
+            {activeViewingRequest && canVerifyExit(activeViewingRequest) && (
               <Link
                 to={`/guard/exit?code=${activeViewingRequest.code}`}
                 className="btn btn-primary"

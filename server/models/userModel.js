@@ -37,7 +37,33 @@ export const userCreateSchema = z.object({
   idempotencyKey: z.string().optional().nullable(),
 })
 
-export const userUpdateSchema = userCreateSchema.partial()
+// Partial updates must NOT inject create-time defaults. `.partial()` on the create
+// schema still applied defaults (e.g. password: 'password123', approvalStatus:
+// 'pending'), which silently reset a user's password and approval status on every
+// PUT. This explicit schema keeps every field optional with no defaults.
+export const userUpdateSchema = z.object({
+  id: z.string().optional(),
+  name: z.string().trim().min(1, 'Name cannot be empty').optional(),
+  username: z.string().trim().min(1, 'Username cannot be empty').optional(),
+  role: z.enum(['student', 'guard', 'proctor'], {
+    errorMap: () => ({ message: 'Role must be student, guard, or proctor' }),
+  }).optional(),
+  password: z.string().optional().nullable(),
+  email: z.string().email('Invalid email address').optional().nullable().or(z.literal('')),
+  phone: z.string().optional().nullable(),
+  studentId: z.string().optional().nullable(),
+  department: z.string().optional().nullable(),
+  address: z.string().optional().nullable(),
+  subcity: z.string().optional().nullable(),
+  woreda: z.string().optional().nullable(),
+  year: z.coerce.number().int().min(1).max(7).optional(),
+  dorm: z.string().optional().nullable(),
+  gate: z.string().optional().nullable(),
+  assignedBlocks: z.string().optional().nullable(),
+  status: z.enum(['active', 'inactive']).optional(),
+  approvalStatus: z.enum(['approve', 'pending', 'reject']).optional(),
+  idempotencyKey: z.string().optional().nullable(),
+})
 
 export const User = {
   tableName: 'users',
