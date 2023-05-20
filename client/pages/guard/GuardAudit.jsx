@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
 import { useStore } from '../../context/store'
 import Icon from '../../components/Icon'
 import RequestDetails from '../../components/RequestDetails'
@@ -27,9 +26,6 @@ export default function GuardAudit() {
   const isApproved = (r) => ['approved', 'approve', 'completed'].includes(norm(r.status))
   const isPending = (r) => norm(r.status) === 'pending'
   const isRejected = (r) => ['rejected', 'reject', 'denied'].includes(norm(r.status))
-  // Only passes that are still awaiting gate verification can be checked at the gate.
-  // 'completed' passes already left campus, so sending the guard to Verify Exit would dead-end.
-  const canVerifyExit = (r) => norm(r.status) === 'approved'
 
   const proctorOf = (r) => {
     if (r.reviewer) return r.reviewer
@@ -198,15 +194,6 @@ export default function GuardAudit() {
                           >
                             <Icon name="eye" size={16} />
                           </button>
-                          {canVerifyExit(r) && (
-                            <Link
-                              to={`/guard/exit?code=${r.code}`}
-                              className="btn btn-sm btn-primary"
-                              title={`Verify pass ${r.code} at the gate`}
-                            >
-                              <Icon name="check" size={13} /> Verify Exit
-                            </Link>
-                          )}
                         </div>
                       </td>
                     </tr>
@@ -225,23 +212,13 @@ export default function GuardAudit() {
         onClose={() => setViewingRequest(null)}
         size="lg"
         footer={
-          <>
-            {activeViewingRequest && canVerifyExit(activeViewingRequest) && (
-              <Link
-                to={`/guard/exit?code=${activeViewingRequest.code}`}
-                className="btn btn-primary"
-              >
-                <Icon name="check" size={15} /> Verify Exit at Gate
-              </Link>
-            )}
-            <button
-              type="button"
-              className="btn btn-ghost"
-              onClick={() => setViewingRequest(null)}
-            >
-              Close
-            </button>
-          </>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => setViewingRequest(null)}
+          >
+            Close
+          </button>
         }
       >
         {activeViewingRequest && <RequestDetails request={activeViewingRequest} />}

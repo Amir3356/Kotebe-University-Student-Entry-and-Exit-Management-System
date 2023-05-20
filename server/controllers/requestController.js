@@ -67,3 +67,15 @@ export async function deleteExitRequest(req, res, next) {
     next(err)
   }
 }
+
+export async function updateExitRequest(req, res, next) {
+  try {
+    const updated = await requestService.updateRequest(req.params.id, req.body)
+    if (wsEvents?.requestUpdated) {
+      wsEvents.requestUpdated(updated)
+    }
+    return res.json({ ok: true, request: updated })
+  } catch (err) {
+    next(err)
+  }
+}

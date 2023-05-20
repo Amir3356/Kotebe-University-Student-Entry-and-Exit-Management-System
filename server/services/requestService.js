@@ -208,6 +208,75 @@ export const requestService = {
     }
     return { ok: true, id }
   },
+
+  async updateRequest(id, { reason, destination, departureDate, returnDate, items, student }) {
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      const updated = await requestRepository.update(
+        id,
+        { reason, destination, departureDate, returnDate },
+        client,
+      )
+      if (!updated) {
+        throw new Error('Request not found.')
+      }
+
+      if (Array.isArray(items)) {
+        await client.query('DELETE FROM exit_request_items WHERE request_id = $1', [id])
+        for (const item of items) {
+          const itemId = `ri-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
+          await requestRepository.createItem(
+            {
+              id: itemId,
+              requestId: id,
+              belongingId: item.belongingId || null,
+              category: item.category || 'Other',
+              description: item.description ? item.description.trim() : 'Item',
+              serialNumber: item.serialNumber ? item.serialNumber.trim() : null,
+              quantity: Number(item.quantity) || 1,
+            },
+            client,
+          )
+        }
+      }
+
+      if (student && updated.student_id) {
+        await client.query(
+          `UPDATE users SET
+            name = COALESCE($1, name),
+            student_id = COALESCE($2, student_id),
+            department = COALESCE($3, department),
+            phone = COALESCE($4, phone),
+            address = COALESCE($5, address),
+            subcity = COALESCE($6, subcity),
+            woreda = COALESCE($7, woreda),
+            updated_at = NOW()
+          WHERE id = $8`,
+          [
+            student.name?.trim() || null,
+            student.studentId?.trim() || null,
+            student.department?.trim() || null,
+            student.phone?.trim() || null,
+            student.address?.trim() || null,
+            student.subcity?.trim() || null,
+            student.woreda?.trim() || null,
+            updated.student_id,
+          ],
+        )
+      }
+
+      await client.query('COMMIT')
+      const fullRow = await requestRepository.findById(id)
+      const newItems = await requestRepository.findItemsByRequestId(id)
+      return formatExitRequest(fullRow || updated, newItems.map(formatRequestItem))
+    } catch (err) {
+      await client.query('ROLLBACK')
+      throw err
+    } finally {
+      client.release()
+    }
+  },
 }
 
 export default requestService

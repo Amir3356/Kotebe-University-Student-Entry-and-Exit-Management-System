@@ -408,6 +408,16 @@ export function StoreProvider({ children }) {
       }))
     }
 
+    function handleRequestUpdated(payload) {
+      if (!payload?.id) return
+      setData((prev) => ({
+        ...prev,
+        exitRequests: prev.exitRequests.map((r) =>
+          r.id === payload.id ? { ...r, ...payload } : r,
+        ),
+      }))
+    }
+
     function handleGateActivity(log) {
       if (!log) return
       setData((prev) => ({
@@ -428,6 +438,7 @@ export function StoreProvider({ children }) {
     socket.on('request:created', handleRequestCreated)
     socket.on('request:cancelled', handleRequestCancelled)
     socket.on('request:deleted', handleRequestDeleted)
+    socket.on('request:updated', handleRequestUpdated)
     socket.on('user:updated', handleUserUpdated)
     socket.on('user:deleted', handleUserDeleted)
     socket.on('gate:activity', handleGateActivity)
@@ -437,6 +448,7 @@ export function StoreProvider({ children }) {
       socket.off('request:created', handleRequestCreated)
       socket.off('request:cancelled', handleRequestCancelled)
       socket.off('request:deleted', handleRequestDeleted)
+      socket.off('request:updated', handleRequestUpdated)
       socket.off('user:updated', handleUserUpdated)
       socket.off('user:deleted', handleUserDeleted)
       socket.off('gate:activity', handleGateActivity)
@@ -600,6 +612,27 @@ export function StoreProvider({ children }) {
           return
         }
         notify('Belongings record deleted.', 'info')
+      },
+
+      async updateRequest(requestId, updateData) {
+        if (!requestId) return { ok: false, error: 'No request ID provided' }
+        try {
+          const result = await requestService.updateRequest(requestId, updateData)
+          if (result?.request) {
+            setData((prev) => ({
+              ...prev,
+              exitRequests: prev.exitRequests.map((r) =>
+                r.id === requestId ? { ...r, ...result.request } : r,
+              ),
+            }))
+            notify('Belongings record updated successfully.', 'success')
+            return { ok: true, request: result.request }
+          }
+          return { ok: false, error: 'Failed to update request' }
+        } catch (err) {
+          notify(err?.message || 'Failed to update belongings.', 'danger')
+          return { ok: false, error: err?.message }
+        }
       },
 
       // Proctor: approve or reject a departure request.

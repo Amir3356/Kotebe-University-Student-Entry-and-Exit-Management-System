@@ -57,6 +57,8 @@ export default function MyBelongings() {
   const [addError, setAddError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [editingStudent, setEditingStudent] = useState(null)
+  const [editError, setEditError] = useState('')
+  const [isEditSubmitting, setIsEditSubmitting] = useState(false)
   const [deletingStudent, setDeletingStudent] = useState(null)
   const [deletedIds, setDeletedIds] = useState(() => new Set())
 
@@ -271,17 +273,122 @@ export default function MyBelongings() {
     }
   }
 
-  function handleSaveEdit(e) {
+  function openEditModal(student, request) {
+    setEditingStudent({
+      ...student,
+      requestId: request?.id || null,
+      reason: request?.reason || '',
+      items: request?.items?.length
+        ? request.items.map((i) => ({
+            key: uid('item'),
+            name: i.description || '',
+            quantity: Number(i.quantity) || 1,
+          }))
+        : [blankItem()],
+      approvalStatus: student.approvalStatus || request?.status || 'pending',
+    })
+    setEditError('')
+    setIsEditSubmitting(false)
+  }
+
+  function updateEditingItem(key, field, value) {
+    setEditingStudent((prev) => {
+      if (!prev) return null
+      return {
+        ...prev,
+        items: prev.items.map((it) => (it.key === key ? { ...it, [field]: value } : it)),
+      }
+    })
+  }
+
+  function addEditingItem() {
+    setEditingStudent((prev) => {
+      if (!prev) return null
+      return {
+        ...prev,
+        items: [...prev.items, blankItem()],
+      }
+    })
+  }
+
+  function removeEditingItem(key) {
+    setEditingStudent((prev) => {
+      if (!prev || prev.items.length <= 1) return prev
+      return {
+        ...prev,
+        items: prev.items.filter((it) => it.key !== key),
+      }
+    })
+  }
+
+  async function handleSaveEdit(e) {
     e.preventDefault()
     if (!editingStudent) return
-    if (actions.saveUser) {
-      actions.saveUser({
-        ...editingStudent,
-        name: editingStudent.name.trim(),
-        approvalStatus: editingStudent.approvalStatus,
-      })
+
+    if (!editingStudent.name?.trim()) return setEditError('Please enter Student Full Name.')
+    if (!editingStudent.studentId?.trim()) return setEditError('Please enter Student ID.')
+
+    const validItems = (editingStudent.items || []).filter((item) => item.name && item.name.trim())
+    if (validItems.length === 0) return setEditError('Please enter at least one item.')
+    if (validItems.some((item) => !(Number(item.quantity) >= 1))) return setEditError('Quantity must be at least 1.')
+    if (!editingStudent.reason?.trim()) return setEditError('Please enter the reason for leaving.')
+
+    setIsEditSubmitting(true)
+    setEditError('')
+
+    try {
+      // 1. Update user demographic data in database
+      if (actions.saveUser) {
+        await actions.saveUser(
+          {
+            ...editingStudent,
+            name: editingStudent.name.trim(),
+            studentId: editingStudent.studentId.trim(),
+            department: editingStudent.department?.trim() || '',
+            phone: editingStudent.phone?.trim() || '',
+            address: editingStudent.address?.trim() || '',
+            subcity: editingStudent.subcity?.trim() || '',
+            woreda: editingStudent.woreda?.trim() || '',
+            approvalStatus: editingStudent.approvalStatus,
+          },
+          { silent: true },
+        )
+      }
+
+      // 2. Update exit request and belonging items in database
+      if (editingStudent.requestId && actions.updateRequest) {
+        const destination =
+          [editingStudent.address, editingStudent.subcity, editingStudent.woreda ? `Woreda ${editingStudent.woreda}` : '']
+            .filter(Boolean)
+            .join(', ')
+            .trim() || 'Home'
+
+        await actions.updateRequest(editingStudent.requestId, {
+          reason: editingStudent.reason.trim(),
+          destination,
+          items: validItems.map((item) => ({
+            category: ITEM_CATEGORIES.find((c) => c.toLowerCase() === item.name.trim().toLowerCase()) ?? 'Other',
+            description: item.name.trim(),
+            quantity: Number(item.quantity) || 1,
+          })),
+          student: {
+            name: editingStudent.name.trim(),
+            studentId: editingStudent.studentId.trim(),
+            department: editingStudent.department?.trim() || '',
+            phone: editingStudent.phone?.trim() || '',
+            address: editingStudent.address?.trim() || '',
+            subcity: editingStudent.subcity?.trim() || '',
+            woreda: editingStudent.woreda?.trim() || '',
+          },
+        })
+      }
+
+      setEditingStudent(null)
+    } catch (err) {
+      setEditError(err?.message || 'Failed to save changes.')
+    } finally {
+      setIsEditSubmitting(false)
     }
-    setEditingStudent(null)
   }
 
   async function handleDelete() {
@@ -442,7 +549,7 @@ export default function MyBelongings() {
                         <button
                           type="button"
                           className="icon-btn"
-                          onClick={() => setEditingStudent({ ...s, approvalStatus: s.approvalStatus || status || 'pending' })}
+                          onClick={() => openEditModal(s, request)}
                           aria-label={`Edit ${s.name}`}
                           title="Edit"
                         >
@@ -570,26 +677,30 @@ export default function MyBelongings() {
         </form>
       </Modal>
 
-      {/* Edit Student Modal */}
+      {/* Edit Student / Belongings Modal */}
       <Modal
         open={!!editingStudent}
-        title="Edit Student Record"
+        title="Edit Belongings Record"
         onClose={() => setEditingStudent(null)}
         size="lg"
         footer={
           <>
-            <button type="button" className="btn btn-ghost" onClick={() => setEditingStudent(null)}>
+            <button type="button" className="btn btn-ghost" onClick={() => setEditingStudent(null)} disabled={isEditSubmitting}>
               Cancel
             </button>
-            <button type="submit" form="edit-student-form" className="btn btn-primary">
-              Save changes
+            <button type="submit" form="edit-student-form" className="btn btn-primary" disabled={isEditSubmitting}>
+              {isEditSubmitting ? 'Saving...' : 'Save changes'}
             </button>
           </>
         }
       >
         {editingStudent && (
           <form id="edit-student-form" className="form-grid" onSubmit={handleSaveEdit}>
-            <Field label="Student Name *">
+            {editError && <Callout tone="danger">{editError}</Callout>}
+
+            <div className="section-title">Student Details</div>
+
+            <Field label="Student Full Name *">
               <input
                 value={editingStudent.name}
                 onChange={(e) => setEditingStudent({ ...editingStudent, name: e.target.value })}
@@ -641,16 +752,73 @@ export default function MyBelongings() {
               />
             </Field>
 
-            <Field label="Status">
-              <select
-                value={editingStudent.approvalStatus || 'pending'}
-                onChange={(e) => setEditingStudent({ ...editingStudent, approvalStatus: e.target.value })}
-              >
-                <option value="pending">Pending</option>
-                <option value="approve">Approve</option>
-                <option value="reject">Reject</option>
-              </select>
+            <div className="section-title">Belongings &amp; Items</div>
+
+            <div className="field-full">
+              <div className="items-header">
+                <span className="field-label">Items leaving campus *</span>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={addEditingItem}>
+                  <Icon name="plus" size={14} /> Add item
+                </button>
+              </div>
+
+              {(editingStudent.items || []).map((item, idx) => (
+                <div key={item.key || idx} className="item-row">
+                  <div className="item-row-name">
+                    <input
+                      value={item.name}
+                      onChange={(e) => updateEditingItem(item.key, 'name', e.target.value)}
+                      placeholder="e.g. Clothes, Laptop, Books"
+                      required
+                    />
+                  </div>
+                  <div className="item-row-qty">
+                    <input
+                      type="number"
+                      min="1"
+                      value={item.quantity}
+                      onChange={(e) => updateEditingItem(item.key, 'quantity', e.target.value)}
+                      aria-label="Quantity"
+                      required
+                    />
+                  </div>
+                  {editingStudent.items.length > 1 && (
+                    <button
+                      type="button"
+                      className="icon-btn danger"
+                      onClick={() => removeEditingItem(item.key)}
+                      aria-label="Remove item"
+                      title="Remove"
+                    >
+                      <Icon name="trash" size={16} />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <Field label="Reason for leaving *" full>
+              <textarea
+                rows={3}
+                value={editingStudent.reason || ''}
+                onChange={(e) => setEditingStudent({ ...editingStudent, reason: e.target.value })}
+                placeholder="e.g. To visit my family"
+                required
+              />
             </Field>
+
+            {currentUser?.role !== 'student' && (
+              <Field label="Status">
+                <select
+                  value={editingStudent.approvalStatus || 'pending'}
+                  onChange={(e) => setEditingStudent({ ...editingStudent, approvalStatus: e.target.value })}
+                >
+                  <option value="pending">Pending</option>
+                  <option value="approve">Approve</option>
+                  <option value="reject">Reject</option>
+                </select>
+              </Field>
+            )}
           </form>
         )}
       </Modal>

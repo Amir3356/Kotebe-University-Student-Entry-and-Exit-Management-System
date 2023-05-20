@@ -14,6 +14,7 @@ export const requestApi = {
     }),
   cancelRequest: (id) => request(`/exit-requests/${id}/cancel`, { method: 'PATCH' }),
   deleteRequest: (id) => request(`/exit-requests/${id}`, { method: 'DELETE' }),
+  updateRequest: (id, data) => request(`/exit-requests/${id}`, { method: 'PUT', data }),
 }
 
 export default requestApi

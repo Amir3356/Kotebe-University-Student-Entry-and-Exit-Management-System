@@ -40,6 +40,9 @@ export const wsEvents = {
   requestDeleted(data) {
     if (io) io.emit('request:deleted', data)
   },
+  requestUpdated(data) {
+    if (io) io.emit('request:updated', data)
+  },
   userUpdated(user) {
     if (io) io.emit('user:updated', user)
   },

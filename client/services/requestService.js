@@ -91,6 +91,13 @@ export const requestService = {
   deleteRequest(requestId) {
     return requestApi.deleteRequest(requestId)
   },
+
+  /**
+   * Updates an exit request.
+   */
+  updateRequest(requestId, data) {
+    return requestApi.updateRequest(requestId, data)
+  },
 }
 
 export default requestService
